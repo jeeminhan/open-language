@@ -1,9 +1,11 @@
-import { getLearner, getStats, getErrors, getSessions, computeEffectiveLevel, getSpacedRepetitionItems, getL1Patterns, getInterests } from "@/lib/db";
+import { getLearner, getStats, getErrors, getSessions, computeEffectiveLevel, getSpacedRepetitionItems, getL1Patterns, getInterests, isDbAvailable } from "@/lib/db";
+import LocalOnly from "@/components/LocalOnly";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  if (!isDbAvailable()) return <LocalOnly />;
   const cookieStore = await cookies();
   const learnerId = cookieStore.get("active_learner")?.value;
   const learner = getLearner(learnerId);

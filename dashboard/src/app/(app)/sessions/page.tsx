@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { getLearner, getSessions } from "@/lib/db";
+import { getLearner, getSessions, isDbAvailable } from "@/lib/db";
+import LocalOnly from "@/components/LocalOnly";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
 export default async function SessionsPage() {
+  if (!isDbAvailable()) return <LocalOnly />;
   const cookieStore = await cookies();
   const learnerId = cookieStore.get("active_learner")?.value;
   const learner = getLearner(learnerId);

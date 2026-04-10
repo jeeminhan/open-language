@@ -1,15 +1,69 @@
 import Database from "better-sqlite3";
 import path from "path";
+import fs from "fs";
 
 const DB_PATH = path.resolve(
   process.cwd(),
   process.env.DB_PATH || "../voice_tutor.db"
 );
 
+/** Returns true when a local SQLite database exists (local dev only). */
+export function isDbAvailable(): boolean {
+  return fs.existsSync(DB_PATH);
+}
+
+const _useMemory = !fs.existsSync(DB_PATH);
+let _memDb: Database.Database | null = null;
 let _dbRead: Database.Database | null = null;
 let _dbWrite: Database.Database | null = null;
 
+/** When the on-disk database doesn't exist, use a shared in-memory DB. */
+function getMemoryDb(): Database.Database {
+  if (!_memDb) {
+    _memDb = new Database(":memory:");
+    _memDb.pragma("foreign_keys = ON");
+    _memDb.exec(`
+      CREATE TABLE IF NOT EXISTS learners (
+        id TEXT PRIMARY KEY, name TEXT, native_language TEXT, target_language TEXT,
+        proficiency_level TEXT, correction_tolerance TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY, learner_id TEXT, mode TEXT, started_at TIMESTAMP,
+        ended_at TIMESTAMP, duration_seconds INTEGER, total_turns INTEGER DEFAULT 0,
+        errors_detected INTEGER DEFAULT 0, corrections_given INTEGER DEFAULT 0, code_switches INTEGER DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS turns (
+        id TEXT PRIMARY KEY, session_id TEXT, turn_number INTEGER, user_message TEXT,
+        tutor_response TEXT, analysis_json TEXT, correction_given INTEGER DEFAULT 0,
+        correction_type TEXT, correction_reasoning TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS error_patterns (
+        id TEXT PRIMARY KEY, learner_id TEXT, description TEXT, category TEXT,
+        l1_source TEXT, severity TEXT, first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_seen TIMESTAMP, occurrence_count INTEGER DEFAULT 1, times_corrected INTEGER DEFAULT 0,
+        times_deferred INTEGER DEFAULT 0, status TEXT DEFAULT 'active', example_utterances TEXT
+      );
+      CREATE TABLE IF NOT EXISTS grammar_inventory (
+        id TEXT PRIMARY KEY, learner_id TEXT, pattern TEXT, level TEXT,
+        correct_uses INTEGER DEFAULT 0, incorrect_uses INTEGER DEFAULT 0, mastery_score REAL DEFAULT 0,
+        l1_interference INTEGER DEFAULT 0, first_used TIMESTAMP, last_used TIMESTAMP, example_sentences TEXT
+      );
+      CREATE TABLE IF NOT EXISTS vocabulary (
+        id TEXT PRIMARY KEY, learner_id TEXT, word TEXT, reading TEXT,
+        language TEXT, times_used INTEGER DEFAULT 1, times_used_correctly INTEGER DEFAULT 0,
+        first_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP, last_used TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS avoidance_patterns (
+        id TEXT PRIMARY KEY, learner_id TEXT, pattern TEXT, last_checked TIMESTAMP
+      );
+    `);
+    ensureExtraTables(_memDb);
+  }
+  return _memDb;
+}
+
 function getDb(): Database.Database {
+  if (_useMemory) return getMemoryDb();
   if (!_dbRead) {
     _dbRead = new Database(DB_PATH, { readonly: true });
     _dbRead.pragma("journal_mode = WAL");
@@ -18,6 +72,7 @@ function getDb(): Database.Database {
 }
 
 function getWriteDb(): Database.Database {
+  if (_useMemory) return getMemoryDb();
   if (!_dbWrite) {
     _dbWrite = new Database(DB_PATH);
     _dbWrite.pragma("journal_mode = WAL");

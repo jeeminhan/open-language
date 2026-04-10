@@ -1,10 +1,12 @@
-import { getLearner, getSessions, getVocabulary, getSessionMetrics, getVocabGrowth, getGrammar } from "@/lib/db";
+import { getLearner, getSessions, getVocabulary, getSessionMetrics, getVocabGrowth, getGrammar, isDbAvailable } from "@/lib/db";
 import { ErrorRateChart, TurnsPerSessionChart, VocabGrowthChart, GrammarMasteryChart } from "@/components/Charts";
+import LocalOnly from "@/components/LocalOnly";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
 export default async function FluencyPage() {
+  if (!isDbAvailable()) return <LocalOnly />;
   const cookieStore = await cookies();
   const learnerId = cookieStore.get("active_learner")?.value;
   const learner = getLearner(learnerId);

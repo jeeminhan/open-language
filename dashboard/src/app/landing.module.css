@@ -1,0 +1,678 @@
+.landing {
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* ─── Hero ─── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  position: relative;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 200px;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+}
+
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 1rem;
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+}
+
+.badgeGreen {
+  color: var(--moss);
+}
+
+.heroTitle {
+  font-size: clamp(3rem, 1rem + 7vw, 7rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  margin-bottom: 1.5rem;
+}
+
+.accent {
+  color: var(--gold);
+}
+
+.subtitle {
+  font-size: clamp(1rem, 0.8rem + 1vw, 1.35rem);
+  color: var(--text-dim);
+  max-width: 600px;
+  margin-bottom: 3rem;
+}
+
+.ctaRow {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ctaPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 2rem;
+  border-radius: 12px;
+  background: var(--gold);
+  color: var(--bg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.ctaPrimary:hover {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+
+.ctaSecondary {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.85rem 2rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.ctaSecondary:hover {
+  border-color: var(--gold);
+  color: var(--text);
+}
+
+/* ─── Sections ─── */
+.section {
+  padding: 6rem 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.sectionLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.sectionLabel::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+
+.sectionLabel[data-color="gold"] {
+  color: var(--gold);
+}
+.sectionLabel[data-color="gold"]::after {
+  background: linear-gradient(to right, color-mix(in srgb, var(--gold) 30%, transparent), transparent);
+}
+.sectionLabel[data-color="ember"] {
+  color: var(--ember);
+}
+.sectionLabel[data-color="ember"]::after {
+  background: linear-gradient(to right, color-mix(in srgb, var(--ember) 30%, transparent), transparent);
+}
+.sectionLabel[data-color="river"] {
+  color: var(--river);
+}
+.sectionLabel[data-color="river"]::after {
+  background: linear-gradient(to right, color-mix(in srgb, var(--river) 30%, transparent), transparent);
+}
+.sectionLabel[data-color="moss"] {
+  color: var(--moss);
+}
+.sectionLabel[data-color="moss"]::after {
+  background: linear-gradient(to right, color-mix(in srgb, var(--moss) 30%, transparent), transparent);
+}
+
+.h2 {
+  font-size: clamp(1.8rem, 1rem + 3vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin-bottom: 1rem;
+}
+
+.dim {
+  color: var(--text-dim);
+}
+
+.sectionDesc {
+  font-size: 1.05rem;
+  color: var(--text-dim);
+  max-width: 640px;
+  margin-bottom: 3rem;
+}
+
+.caption {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin-top: 1.5rem;
+}
+
+/* ─── Terminal ─── */
+.terminal {
+  background: #0d0d14;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.65;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  max-width: 720px;
+}
+
+.terminalBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dotRed { background: #ff5f56; }
+.dotYellow { background: #ffbd2e; }
+.dotGreen { background: #27c93f; }
+
+.terminalTitle {
+  flex: 1;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.terminalBody {
+  padding: 1.25rem 1.5rem;
+  overflow-x: auto;
+}
+
+.line {
+  display: block;
+  min-height: 1.65em;
+}
+
+.lineBlank {
+  display: block;
+  min-height: 0.8em;
+}
+
+.tDim { color: var(--text-dim); }
+.tGreen { color: var(--moss); }
+.tGold { color: var(--gold); }
+.tEmber { color: var(--ember); }
+.tRiver { color: var(--river); }
+.tCyan { color: #6bcbc8; }
+.tBold { font-weight: 700; }
+.tPrompt { color: var(--moss); font-weight: 700; }
+.tTutor { color: var(--river); font-weight: 700; display: block; }
+
+/* ─── Mode cards ─── */
+.modeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+}
+
+.modeCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.modeIcon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.modeTitle {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.modeDesc {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.modeItems {
+  list-style: none;
+  margin-top: 1rem;
+  text-align: left;
+  padding: 0;
+}
+
+.modeItems li {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  padding: 0.3rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modeItems li::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--dot-color);
+}
+
+/* ─── Journal ─── */
+.journalGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+.journalPage {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 2rem 2.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.journalPage::before {
+  content: "";
+  position: absolute;
+  left: 2rem;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(196, 185, 154, 0.12);
+}
+
+.journalDate {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--gold);
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.journalEntry {
+  padding-left: 1.25rem;
+  font-size: 0.9rem;
+  line-height: 1.85;
+}
+
+.journalEntry p {
+  margin-bottom: 0.75rem;
+}
+
+.hmm {
+  display: inline-block;
+  color: var(--gold);
+  font-size: 0.75rem;
+  opacity: 0.6;
+  margin-left: 0.5rem;
+  font-style: italic;
+}
+
+.feedbackBox {
+  padding: 1.25rem 1.5rem;
+  background: rgba(196, 185, 154, 0.06);
+  border: 1px solid rgba(196, 185, 154, 0.15);
+  border-radius: 12px;
+}
+
+.feedbackTitle {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+  margin-bottom: 0.75rem;
+}
+
+.feedbackSubtitle {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-bottom: 1rem;
+}
+
+.correction {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin-bottom: 0.6rem;
+  font-size: 0.8rem;
+}
+
+.arrow {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.strike {
+  color: var(--ember);
+  text-decoration: line-through;
+  text-decoration-color: rgba(196, 94, 74, 0.5);
+}
+
+.fix {
+  color: var(--moss);
+  font-weight: 600;
+}
+
+.correctionNote {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-top: 0.2rem;
+}
+
+.wellDone {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.wellDoneTitle {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--moss);
+  margin-bottom: 0.5rem;
+}
+
+.wellDoneList {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.whyBox {
+  margin-top: 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.whyTitle {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--river);
+  margin-bottom: 0.75rem;
+}
+
+.whyList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.whyNum {
+  color: var(--river);
+}
+
+/* ─── Two-up ─── */
+.twoUp {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+.trackTitle {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 1.25rem;
+}
+
+.trackList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.trackItem {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.trackLabel {
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.trackDesc {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+/* ─── Flow ─── */
+.flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 2rem 0;
+  gap: 0;
+}
+
+.flowStep {
+  display: flex;
+  align-items: center;
+}
+
+.flowArrow {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  padding: 0 0.4rem;
+}
+
+.flowNode {
+  padding: 0.6rem 1.1rem;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid;
+}
+
+.flowNode[data-color="gold"] {
+  background: rgba(196, 185, 154, 0.1);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.flowNode[data-color="ember"] {
+  background: rgba(196, 78, 74, 0.1);
+  border-color: var(--ember);
+  color: var(--ember);
+}
+.flowNode[data-color="river"] {
+  background: rgba(91, 126, 154, 0.1);
+  border-color: var(--river);
+  color: var(--river);
+}
+.flowNode[data-color="moss"] {
+  background: rgba(107, 154, 91, 0.1);
+  border-color: var(--moss);
+  color: var(--moss);
+}
+
+/* ─── Loops grid ─── */
+.loopsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.loopCard {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  padding: 1rem 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.loopNum {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  background: rgba(91, 126, 154, 0.15);
+  color: var(--river);
+}
+
+.loopTitle {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.loopDesc {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ─── Pills ─── */
+.pills {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-top: 2rem;
+  justify-content: center;
+}
+
+.pill {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.82rem;
+}
+
+.pillValue {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+/* ─── Footer ─── */
+.footer {
+  padding: 4rem 2rem;
+  text-align: center;
+  border-top: 1px solid var(--border);
+}
+
+.footerTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.footerDesc {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.code {
+  font-family: var(--font-mono);
+  background: var(--bg-card);
+  padding: 0.15rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--gold);
+}
+
+.footerTech {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .modeGrid,
+  .twoUp,
+  .journalGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .flow {
+    gap: 0.25rem;
+  }
+
+  .flowStep {
+    margin-bottom: 0.5rem;
+  }
+
+  .section {
+    padding: 4rem 1.25rem;
+  }
+}

@@ -1,360 +1,667 @@
-import { getLearner, getStats, getErrors, getSessions, computeEffectiveLevel, getSpacedRepetitionItems, getL1Patterns, getInterests } from "@/lib/db";
-import { cookies } from "next/headers";
+import Link from "next/link";
+import styles from "./landing.module.css";
 
-export const dynamic = "force-dynamic";
-
-export default async function Home() {
-  const cookieStore = await cookies();
-  const learnerId = cookieStore.get("active_learner")?.value;
-  const learner = getLearner(learnerId);
-  if (!learner) {
-    return (
-      <div className="card">
-        <p style={{ color: "var(--text-dim)" }}>
-          No learner profile found. Run a conversation session first.
+export default function LandingPage() {
+  return (
+    <div className={styles.landing}>
+      {/* ─── Hero ─── */}
+      <div className={styles.hero}>
+        <div className={styles.heroBadge}>
+          <span className={styles.badgeGreen}>open source</span> &middot; CLI +
+          Web &middot; Any language pair
+        </div>
+        <h1 className={styles.heroTitle}>
+          open<span className={styles.accent}>-</span>language
+        </h1>
+        <p className={styles.subtitle}>
+          An AI language tutor that remembers your mistakes, adapts to your
+          level, and gets smarter every session.
         </p>
-      </div>
-    );
-  }
-
-  const stats = getStats(learner.id);
-  const topErrors = getErrors(learner.id).slice(0, 5);
-  const recentSessions = getSessions(learner.id, 5);
-
-  return (
-    <div className="space-y-10">
-      {/* Learner header */}
-      <div className="card">
-        <div className="flex items-baseline gap-4 flex-wrap">
-          <h2 className="text-xl font-bold">{learner.name}</h2>
-          <span style={{ color: "var(--gold)" }}>
-            {learner.native_language} → {learner.target_language}
-          </span>
-          <span style={{ color: "var(--text-dim)" }}>
-            Level: {learner.proficiency_level}
-          </span>
+        <div className={styles.ctaRow}>
+          <Link href="/chat" className={styles.ctaPrimary}>
+            Try the web version
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          </Link>
+          <Link href="/dashboard" className={styles.ctaSecondary}>
+            View dashboard
+          </Link>
         </div>
       </div>
 
-      {/* ─── SECTION 1: Overview (gold) ─── */}
-      <section>
-        <SectionHeader color="var(--gold)" icon={
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 3v18h18" /><path d="M7 16l4-8 4 4 4-10" />
-          </svg>
-        }>Overview</SectionHeader>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <StatCard label="Sessions" value={stats.sessions} color="var(--gold)" />
-          <StatCard label="Hours" value={stats.hours} color="var(--gold)" />
-          <StatCard label="Turns" value={stats.turns} color="var(--gold)" />
-          <StatCard label="Unique Words" value={stats.uniqueWords} color="var(--gold)" />
-          <StatCard label="Error Patterns" value={stats.errorPatterns} color="var(--gold)" />
+      {/* ─── Conversation demo ─── */}
+      <section className={styles.section}>
+        <SectionLabel color="gold">What It Does</SectionLabel>
+        <h2 className={styles.h2}>
+          Have a real conversation.{" "}
+          <span className={styles.dim}>Get real feedback.</span>
+        </h2>
+        <p className={styles.sectionDesc}>
+          Talk to an AI tutor that corrects you like a good friend would —
+          naturally, not robotically. It tracks every error, learns your weak
+          points, and steers future conversations toward what you need to
+          practice.
+        </p>
+
+        <div className={styles.terminal}>
+          <div className={styles.terminalBar}>
+            <span className={`${styles.dot} ${styles.dotRed}`} />
+            <span className={`${styles.dot} ${styles.dotYellow}`} />
+            <span className={`${styles.dot} ${styles.dotGreen}`} />
+            <span className={styles.terminalTitle}>
+              open-language — Session #14
+            </span>
+          </div>
+          <div className={styles.terminalBody}>
+            <Line>
+              <Prompt>
+                I goed to the store yesterday and buyed some fruits
+              </Prompt>
+            </Line>
+            <Line blank />
+            <Line>
+              <Tutor />
+            </Line>
+            <Line>
+              &nbsp;&nbsp;Oh nice! I{" "}
+              <Gold bold>went</Gold> to the farmer&apos;s market last weekend
+              too.
+            </Line>
+            <Line>
+              &nbsp;&nbsp;What kind of fruit did you <Gold bold>buy</Gold>?
+              I&apos;ve been really into
+            </Line>
+            <Line>&nbsp;&nbsp;persimmons lately.</Line>
+            <Line blank />
+            <Line>
+              <Prompt>I buyed apples and some persimmon too!</Prompt>
+            </Line>
+            <Line blank />
+            <Line>
+              <Tutor />
+            </Line>
+            <Line>
+              &nbsp;&nbsp;Persimmons are so good this time of year! Just a quick
+            </Line>
+            <Line>
+              &nbsp;&nbsp;note — the past tense of &quot;buy&quot; is{" "}
+              <Gold bold>&quot;bought&quot;</Gold>, not &quot;buyed&quot;.
+            </Line>
+            <Line>
+              &nbsp;&nbsp;It&apos;s irregular, like go/went.{" "}
+              <span className={styles.tDim}>
+                (Korean doesn&apos;t have
+              </span>
+            </Line>
+            <Line>
+              <span className={styles.tDim}>
+                &nbsp;&nbsp;irregular verbs, so this is a tricky one!)
+              </span>
+            </Line>
+            <Line>&nbsp;&nbsp;Do you prefer the crunchy or soft kind?</Line>
+          </div>
+        </div>
+
+        <p className={styles.caption}>
+          First time → models correctly in response. Second time → recasts
+          prominently. Third time → explains gently.
+        </p>
+      </section>
+
+      {/* ─── Three Modes ─── */}
+      <section className={styles.section}>
+        <SectionLabel color="river">Three Modes</SectionLabel>
+        <h2 className={styles.h2}>
+          Type, speak, or journal.{" "}
+          <span className={styles.dim}>Your choice.</span>
+        </h2>
+
+        <div className={styles.modeGrid}>
+          <ModeCard
+            color="var(--gold)"
+            icon="&gt;_"
+            title="Text Mode"
+            desc="Type your responses. Great for focused grammar practice and studying on the go."
+            items={[
+              "Zero setup required",
+              "Slash commands for stats",
+              "Review corrections at your own pace",
+            ]}
+          />
+          <ModeCard
+            color="var(--river)"
+            icon="«))"
+            title="Voice Mode"
+            desc="Speak and listen. Push-to-talk recording with real-time transcription and text-to-speech."
+            items={[
+              "Whisper-powered speech recognition",
+              "macOS TTS for tutor responses",
+              "Silence detection auto-stops",
+              "Type mid-session if needed",
+            ]}
+          />
+          <ModeCard
+            color="var(--gold)"
+            icon="&#x1F4D6;"
+            title="Journal Mode"
+            desc="Speak or write freely with no interruptions. Corrections come only after you're done."
+            items={[
+              "No corrections while you write",
+              "Flowing diary-style layout",
+              "Full error report when finished",
+              "Builds fluency without anxiety",
+            ]}
+          />
         </div>
       </section>
 
-      {/* ─── SECTION 2: Progress (ember) ─── */}
-      <section>
-        <SectionHeader color="var(--ember)" icon={
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" /><path d="M12 8v4l3 3" />
-          </svg>
-        }>Session Progress</SectionHeader>
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="card" style={{ borderTop: "3px solid var(--ember)" }}>
-            <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--ember)" }}>
-              Top Error Patterns
-            </h3>
-            {topErrors.length === 0 ? (
-              <p style={{ color: "var(--text-dim)" }}>No errors yet.</p>
-            ) : (
-              <ul className="space-y-2.5">
-                {topErrors.map((err) => (
-                  <li key={err.id} className="flex justify-between items-start">
-                    <div>
-                      <span className="text-sm">{err.description}</span>
-                      <span className="text-xs ml-2" style={{ color: "var(--text-dim)" }}>[{err.category}]</span>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="font-mono text-sm">{err.occurrence_count}x</span>
-                      <span className={`text-xs status-${err.status}`}>{err.status}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+      {/* ─── Journal Mode ─── */}
+      <section className={styles.section}>
+        <SectionLabel color="gold">Journal Mode</SectionLabel>
+        <h2 className={styles.h2}>
+          Write freely first.{" "}
+          <span className={styles.dim}>Learn from mistakes after.</span>
+        </h2>
+        <p className={styles.sectionDesc}>
+          Journal mode flips the script: you speak or type your thoughts with
+          zero interruptions. The tutor stays silent — just a quiet
+          &quot;hmm&quot; or &quot;yeah&quot; so you know it&apos;s listening.
+          When you&apos;re done, you get a full error report with corrections.
+        </p>
 
-          <div className="card" style={{ borderTop: "3px solid var(--ember)" }}>
-            <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--ember)" }}>
-              Recent Sessions
-            </h3>
-            {recentSessions.length === 0 ? (
-              <p style={{ color: "var(--text-dim)" }}>No sessions yet.</p>
-            ) : (
-              <ul className="space-y-2.5">
-                {recentSessions.map((s) => (
-                  <li key={s.id} className="flex justify-between text-sm">
-                    <span style={{ color: "var(--text-dim)" }}>
-                      {s.started_at?.slice(0, 16).replace("T", " ")}
-                    </span>
-                    <div className="flex gap-4">
-                      <span>{Math.round((s.duration_seconds ?? 0) / 60)}m</span>
-                      <span>{s.total_turns} turns</span>
-                      <span style={{ color: "var(--ember)" }}>{s.errors_detected} err</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ─── SECTION 3: Self-Learning System (river/blue) ─── */}
-      {(() => {
-        const eff = computeEffectiveLevel(learner.id);
-        const practiceItems = getSpacedRepetitionItems(learner.id, 5);
-        const l1Patterns = getL1Patterns(learner.id);
-
-        return (
-          <section>
-            <SectionHeader color="var(--river)" icon={
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3C6.2 13.5 5 11.4 5 9a7 7 0 0 1 7-7z" />
-                <line x1="10" y1="22" x2="14" y2="22" />
-              </svg>
-            }>Self-Learning System</SectionHeader>
-
-            {/* Live status cards */}
-            <div className="grid md:grid-cols-3 gap-4 mb-4">
-              <div className="card" style={{ borderTop: "3px solid var(--river)" }}>
-                <div className="text-xs mb-1" style={{ color: "var(--text-dim)" }}>Computed Level</div>
-                <div className="text-2xl font-bold" style={{ color: "var(--river)" }}>
-                  {eff.confidence > 0.3 ? eff.level : learner.proficiency_level}
-                </div>
-                <div className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
-                  {eff.confidence > 0.3
-                    ? `${Math.round(eff.grammarMastery)}% mastery, ${Math.round(eff.errorRate)}% error rate`
-                    : "Gathering data..."}
-                </div>
-                {eff.confidence > 0.3 && eff.level !== learner.proficiency_level && (
-                  <div className="text-[10px] mt-1.5" style={{ color: "var(--river)" }}>
-                    Registered as {learner.proficiency_level} — tutor is adapting
-                  </div>
-                )}
-                <div className="flex items-center gap-2 mt-2">
-                  <div className="flex-1 h-1.5 rounded-full" style={{ background: "var(--border)" }}>
-                    <div className="h-1.5 rounded-full" style={{ width: `${Math.min(100, eff.confidence * 100)}%`, background: "var(--river)" }} />
-                  </div>
-                  <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>{eff.totalDataPoints} data pts</span>
-                </div>
+        <div className={styles.journalGrid}>
+          <div>
+            <div className={styles.journalPage}>
+              <div className={styles.journalDate}>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                </svg>
+                Thursday, April 10
               </div>
-
-              <div className="card" style={{ borderTop: "3px solid var(--river)" }}>
-                <div className="text-xs mb-1" style={{ color: "var(--text-dim)" }}>L1 Interference</div>
-                <div className="text-2xl font-bold" style={{ color: "var(--river)" }}>{l1Patterns.length}</div>
-                <div className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>L1 habits identified</div>
-                {l1Patterns.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {l1Patterns.slice(0, 2).map((p, i) => (
-                      <p key={i} className="text-[11px] leading-snug" style={{ color: "var(--river)" }}>{p.l1_source}</p>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="card" style={{ borderTop: "3px solid var(--river)" }}>
-                <div className="text-xs mb-1" style={{ color: "var(--text-dim)" }}>Practice Queue</div>
-                <div className="text-2xl font-bold" style={{ color: "var(--river)" }}>{practiceItems.length}</div>
-                <div className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>items via spaced repetition</div>
-                {practiceItems.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {practiceItems.slice(0, 2).map((item, i) => (
-                      <div key={i} className="flex items-center gap-1.5 text-[11px]">
-                        <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 text-[8px] font-bold"
-                          style={{ background: "rgba(98, 148, 184, 0.2)", color: "var(--river)" }}>
-                          {item.priority}
-                        </span>
-                        <span className="truncate" style={{ color: "var(--text)" }}>{item.description}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* How It Works */}
-            <div className="card" style={{ borderLeft: "3px solid var(--river)" }}>
-              <h3 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: "var(--river)" }}>
-                How It Works — 9 Learning Loops
-              </h3>
-
-              <div className="grid md:grid-cols-2 gap-x-8 gap-y-5">
-                <LoopCard num={1} title="Adaptive Difficulty">
-                  Computes your effective level from grammar mastery and error rate. As you improve,
-                  the tutor pushes harder vocabulary and grammar automatically.
-                </LoopCard>
-                <LoopCard num={2} title="Spaced Repetition">
-                  Prioritizes patterns you haven{"'"}t practiced recently or keep getting wrong,
-                  then steers conversation toward them.
-                </LoopCard>
-                <LoopCard num={3} title="L1 Interference Detection">
-                  Identifies errors caused by native language habits and feeds them back to the tutor
-                  so it explains <em>why</em> you make the mistake.
-                </LoopCard>
-                <LoopCard num={4} title="Second-Pass Review Agent">
-                  After each session, an outside agent reviews the full conversation to catch
-                  errors the real-time checker missed.
-                </LoopCard>
-                <LoopCard num={5} title="Tutor Self-Evaluation">
-                  Grades the tutor{"'"}s own responses — correction effectiveness, missed teaching
-                  moments. Makes the tutor smarter over time.
-                </LoopCard>
-                <LoopCard num={6} title="Error Clustering">
-                  Groups related errors by root cause with specific recommendations instead
-                  of showing isolated mistakes.
-                </LoopCard>
-                <LoopCard num={7} title="Unknown Vocab Tracking">
-                  When you ask what a word means, it{"'"}s saved for review. Builds a personal
-                  dictionary of words you{"'"}re actively learning.
-                </LoopCard>
-                <LoopCard num={8} title="Topic Difficulty Scoring">
-                  Each conversation is scored for difficulty so future topic suggestions
-                  better match your current level.
-                </LoopCard>
-                <LoopCard num={9} title="Interest Profiling">
-                  Detects your interests from conversations — books, music, shows, hobbies — pulls
-                  real web info, and generates personalized topics you actually want to discuss.
-                </LoopCard>
-              </div>
-
-              {/* Feedback loop diagram */}
-              <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
-                <div className="flex items-center justify-center gap-2 flex-wrap text-[11px]">
-                  {["You speak", "Errors detected", "L1 + vocab tagged", "Interests learned", "Tutor self-evaluates", "Clusters + adapts", "Better next session"].map((step, i) => (
-                    <span key={i} className="flex items-center gap-2">
-                      {i > 0 && <span style={{ color: "var(--text-dim)" }}>→</span>}
-                      <span className="px-2 py-1 rounded" style={{ background: "rgba(98, 148, 184, 0.1)", color: "var(--river)" }}>{step}</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-        );
-      })()}
-
-      {/* ─── SECTION 4: Your Profile (sage/green) ─── */}
-      {(() => {
-        const interests = getInterests(learner.id);
-        const categoryIcons: Record<string, string> = {
-          books: "\u{1F4DA}", music: "\u{1F3B5}", tv_shows: "\u{1F4FA}", movies: "\u{1F3AC}",
-          anime: "\u{1F30A}", hobbies: "\u{2728}", sports: "\u{26BD}", food: "\u{1F372}",
-          travel: "\u{2708}\u{FE0F}", work: "\u{1F4BC}", culture: "\u{1F3AF}", games: "\u{1F3AE}",
-          technology: "\u{1F4BB}", people: "\u{1F465}", news: "\u{1F4F0}", other: "\u{1F4AD}",
-        };
-
-        return (
-          <section>
-            <SectionHeader color="var(--moss)" icon={
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-            }>Your Profile</SectionHeader>
-
-            {interests.length === 0 ? (
-              <div className="card" style={{ borderTop: "3px solid var(--moss)" }}>
-                <p className="text-sm" style={{ color: "var(--text-dim)" }}>
-                  No interests detected yet. As you have conversations, the tutor will automatically learn what you care about
-                  and use those topics to make sessions more engaging.
+              <div className={styles.journalEntry}>
+                <p>
+                  오늘 회사에서 정말 바쁜 하루였어요. 아침부터 미팅이 많았고 점심도
+                  제대로 못 먹었어요.
                 </p>
+                <p>
+                  퇴근 후에 친구를 만나서 카페에 갔는데, 새로운 디저트를
+                  먹어봤어요. 너무 맛있었어요!{" "}
+                  <span className={styles.hmm}>응...</span>
+                </p>
+                <p>
+                  요즘 한국어 공부가 좀 어려운 것 같아요. 특히 존댓말이랑 반말을
+                  언제 써야 하는지 헷갈려요.{" "}
+                  <span className={styles.hmm}>그렇군요</span>
+                </p>
+                <p>내일은 좀 더 여유로운 하루가 됐으면 좋겠어요.</p>
               </div>
-            ) : (
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="card" style={{ borderTop: "3px solid var(--moss)" }}>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--moss)" }}>
-                    Detected Interests
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {interests.map((interest) => (
-                      <div
-                        key={interest.id}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm"
-                        style={{ background: "rgba(107, 154, 91, 0.1)", border: "1px solid rgba(107, 154, 91, 0.2)" }}
-                        title={interest.details || undefined}
-                      >
-                        <span className="text-xs">{categoryIcons[interest.category] || "\u{1F4AD}"}</span>
-                        <span style={{ color: "var(--text)" }}>{interest.name}</span>
-                        {interest.mention_count > 1 && (
-                          <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>{interest.mention_count}x</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            </div>
+            <p className={styles.caption}>
+              The tutor only gives tiny acknowledgments — like a diary that hums.
+            </p>
+          </div>
 
-                <div className="card" style={{ borderTop: "3px solid var(--moss)" }}>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--moss)" }}>
-                    How This Works
-                  </h3>
-                  <div className="space-y-2">
-                    <p className="text-xs leading-relaxed" style={{ color: "var(--text-dim)" }}>
-                      The tutor automatically detects your interests from conversations. It uses them to:
-                    </p>
-                    <ul className="space-y-1.5 text-xs" style={{ color: "var(--text-dim)" }}>
-                      <li className="flex items-start gap-2">
-                        <span style={{ color: "var(--moss)" }}>1.</span>
-                        Generate personalized conversation topics you actually want to discuss
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span style={{ color: "var(--moss)" }}>2.</span>
-                        Pull real, current information from the web about your interests
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span style={{ color: "var(--moss)" }}>3.</span>
-                        Steer grammar practice toward topics that keep you engaged
-                      </li>
-                    </ul>
+          <div>
+            <div className={styles.feedbackBox}>
+              <h4 className={styles.feedbackTitle}>Post-Journal Corrections</h4>
+              <p className={styles.feedbackSubtitle}>
+                These appear only after you press &quot;Done&quot; — never during
+                writing.
+              </p>
+
+              <div className={styles.correction}>
+                <span className={styles.arrow}>→</span>
+                <div>
+                  <span className={styles.strike}>바쁜 하루였어요</span>
+                  <span className={styles.fix}>
+                    {" "}
+                    &nbsp;바쁜 하루를 보냈어요
+                  </span>
+                  <div className={styles.correctionNote}>
+                    More natural phrasing — &quot;spent a busy day&quot; vs
+                    &quot;it was a busy day&quot;
                   </div>
                 </div>
               </div>
-            )}
-          </section>
-        );
-      })()}
+
+              <div className={styles.correction}>
+                <span className={styles.arrow}>→</span>
+                <div>
+                  <span className={styles.strike}>됐으면</span>
+                  <span className={styles.fix}> &nbsp;되었으면</span>
+                  <div className={styles.correctionNote}>
+                    Written Korean prefers the full form over the contracted
+                    spoken form
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.wellDone}>
+                <div className={styles.wellDoneTitle}>What you did well</div>
+                <div className={styles.wellDoneList}>
+                  <div>
+                    + Natural use of —(으)ㄴ 것 같아요 for expressing uncertainty
+                  </div>
+                  <div>
+                    + Correct honorific level throughout (polite —요 form)
+                  </div>
+                  <div>+ Good topic variety and sentence connectors</div>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.whyBox}>
+              <div className={styles.whyTitle}>Why journal mode?</div>
+              <div className={styles.whyList}>
+                <div>
+                  <span className={styles.whyNum}>1.</span> Builds fluency —
+                  uninterrupted output trains your brain to produce language
+                  without pausing
+                </div>
+                <div>
+                  <span className={styles.whyNum}>2.</span> Reduces anxiety — no
+                  fear of being corrected mid-thought
+                </div>
+                <div>
+                  <span className={styles.whyNum}>3.</span> Better error quality
+                  — reviewing corrections after writing is more effective than
+                  real-time interruption
+                </div>
+                <div>
+                  <span className={styles.whyNum}>4.</span> Captures natural
+                  speech — errors in free expression reveal your true level
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Behind the scenes ─── */}
+      <section className={styles.section}>
+        <SectionLabel color="ember">Behind Every Turn</SectionLabel>
+        <h2 className={styles.h2}>
+          The tutor analyzes{" "}
+          <span className={styles.dim}>everything you say.</span>
+        </h2>
+        <p className={styles.sectionDesc}>
+          Every message you send is parsed for errors, grammar patterns,
+          vocabulary, and fluency signals. This data feeds 9 learning loops that
+          make the tutor smarter over time.
+        </p>
+
+        <div className={styles.twoUp}>
+          <div className={styles.terminal} style={{ fontSize: "0.72rem" }}>
+            <div className={styles.terminalBar}>
+              <span className={`${styles.dot} ${styles.dotRed}`} />
+              <span className={`${styles.dot} ${styles.dotYellow}`} />
+              <span className={`${styles.dot} ${styles.dotGreen}`} />
+              <span className={styles.terminalTitle}>
+                analysis (hidden from learner)
+              </span>
+            </div>
+            <div className={styles.terminalBody}>
+              <Line>
+                <span className={styles.tDim}>{"{"}</span>
+              </Line>
+              <Line>
+                <span className={styles.tDim}>
+                  {"  "}
+                  {'"errors"'}: [{"{"}{" "}
+                </span>
+              </Line>
+              <Line>
+                <span className={styles.tDim}>{"    "}&quot;type&quot;:</span>{" "}
+                <span className={styles.tEmber}>
+                  &quot;irregular_past_tense&quot;
+                </span>
+                <span className={styles.tDim}>,</span>
+              </Line>
+              <Line>
+                <span className={styles.tDim}>
+                  {"    "}&quot;observed&quot;:
+                </span>{" "}
+                <span className={styles.tEmber}>&quot;buyed&quot;</span>
+                <span className={styles.tDim}>,</span>
+              </Line>
+              <Line>
+                <span className={styles.tDim}>
+                  {"    "}&quot;expected&quot;:
+                </span>{" "}
+                <span className={styles.tGreen}>&quot;bought&quot;</span>
+                <span className={styles.tDim}>,</span>
+              </Line>
+              <Line>
+                <span className={styles.tDim}>
+                  {"    "}&quot;l1_source&quot;:
+                </span>{" "}
+                <span className={styles.tRiver}>
+                  &quot;Korean has regular
+                </span>
+              </Line>
+              <Line>
+                <span className={styles.tRiver}>
+                  {"      "}conjugation — no irregular forms&quot;
+                </span>
+              </Line>
+              <Line>
+                <span className={styles.tDim}>{"  "}],</span>
+              </Line>
+              <Line>
+                <span className={styles.tDim}>
+                  {"  "}&quot;correction_action&quot;:
+                </span>{" "}
+                <span className={styles.tGold}>&quot;recast&quot;</span>
+                <span className={styles.tDim}>,</span>
+              </Line>
+              <Line>
+                <span className={styles.tDim}>
+                  {"  "}&quot;vocabulary_used&quot;:
+                </span>{" "}
+                <span className={styles.tCyan}>
+                  [&quot;store&quot;,&quot;fruits&quot;]
+                </span>
+              </Line>
+              <Line>
+                <span className={styles.tDim}>{"}"}</span>
+              </Line>
+            </div>
+          </div>
+
+          <div>
+            <h3 className={styles.trackTitle}>What gets tracked:</h3>
+            <div className={styles.trackList}>
+              <TrackItem color="var(--ember)" label="Errors">
+                Categorized, counted, linked to L1 interference patterns
+              </TrackItem>
+              <TrackItem color="var(--moss)" label="Grammar">
+                Correct and incorrect uses tracked for mastery percentage
+              </TrackItem>
+              <TrackItem color="var(--river)" label="Vocabulary">
+                Every unique word logged, unknown words flagged for review
+              </TrackItem>
+              <TrackItem color="var(--gold)" label="Fluency">
+                Hesitation, self-correction, code-switching, confidence
+              </TrackItem>
+              <TrackItem color="var(--moss)" label="Interests">
+                Books, music, hobbies detected — used to personalize topics
+              </TrackItem>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 9 Learning Loops ─── */}
+      <section className={styles.section}>
+        <SectionLabel color="river">Self-Learning System</SectionLabel>
+        <h2 className={styles.h2}>
+          9 feedback loops{" "}
+          <span className={styles.dim}>that compound.</span>
+        </h2>
+        <p className={styles.sectionDesc}>
+          The tutor doesn&apos;t just respond — it evaluates itself, clusters
+          your errors by root cause, builds a spaced repetition queue, and
+          adapts its difficulty. Every session makes the next one better.
+        </p>
+
+        <div className={styles.flow}>
+          {[
+            { label: "You speak", color: "gold" },
+            { label: "Errors detected", color: "ember" },
+            { label: "Clustered & tagged", color: "river" },
+            { label: "Tutor adapts", color: "moss" },
+            { label: "Better next session", color: "gold" },
+          ].map((step, i) => (
+            <div key={i} className={styles.flowStep}>
+              {i > 0 && <span className={styles.flowArrow}>→</span>}
+              <span
+                className={styles.flowNode}
+                data-color={step.color}
+              >
+                {step.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className={styles.loopsGrid}>
+          {[
+            ["Adaptive Difficulty", "Computes your real level from grammar mastery and error rate. Pushes harder content as you improve."],
+            ["Spaced Repetition", "Prioritizes patterns you struggle with and steers conversation toward them at optimal intervals."],
+            ["L1 Interference", "Identifies errors caused by native language habits and explains why you make the mistake."],
+            ["Second-Pass Review", "After each session, an outside agent reviews the full conversation to catch missed errors."],
+            ["Tutor Self-Evaluation", "Grades its own responses for correction quality and missed teaching moments."],
+            ["Error Clustering", "Groups related errors by root cause with specific fix recommendations instead of isolated mistakes."],
+            ["Vocab Tracking", "When you ask what a word means, it's saved. Builds a personal dictionary of words you're learning."],
+            ["Topic Difficulty", "Each conversation is scored for difficulty so future topic suggestions match your current level."],
+            ["Interest Profiling", "Detects your interests from conversations and generates personalized topics you actually want to discuss."],
+          ].map(([title, desc], i) => (
+            <div key={i} className={styles.loopCard}>
+              <span className={styles.loopNum}>{i + 1}</span>
+              <div>
+                <h4 className={styles.loopTitle}>{title}</h4>
+                <p className={styles.loopDesc}>{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ─── Get Started ─── */}
+      <section className={styles.section}>
+        <SectionLabel color="moss">Get Started</SectionLabel>
+        <h2 className={styles.h2}>
+          Running in <span className={styles.dim}>under a minute.</span>
+        </h2>
+
+        <div className={styles.terminal} style={{ maxWidth: 620 }}>
+          <div className={styles.terminalBar}>
+            <span className={`${styles.dot} ${styles.dotRed}`} />
+            <span className={`${styles.dot} ${styles.dotYellow}`} />
+            <span className={`${styles.dot} ${styles.dotGreen}`} />
+            <span className={styles.terminalTitle}>setup</span>
+          </div>
+          <div className={styles.terminalBody}>
+            <Line>
+              <span className={styles.tDim}># Clone and install</span>
+            </Line>
+            <Line>
+              <span className={styles.tGold}>$</span> git clone
+              https://github.com/jeeminhan/open-language
+            </Line>
+            <Line>
+              <span className={styles.tGold}>$</span> cd open-language
+            </Line>
+            <Line>
+              <span className={styles.tGold}>$</span> pip install -r
+              requirements.txt
+            </Line>
+            <Line blank />
+            <Line>
+              <span className={styles.tDim}># Add your API key</span>
+            </Line>
+            <Line>
+              <span className={styles.tGold}>$</span> echo
+              &quot;LLM_API_KEY=your-key-here&quot; &gt; .env
+            </Line>
+            <Line blank />
+            <Line>
+              <span className={styles.tDim}># Start learning</span>
+            </Line>
+            <Line>
+              <span className={styles.tGold}>$</span> python main.py
+            </Line>
+          </div>
+        </div>
+
+        <div className={styles.pills}>
+          <span className={styles.pill}>
+            <span className={styles.tDim}>Default LLM:</span>{" "}
+            <span className={styles.pillValue}>Gemini 2.5 Flash</span>
+          </span>
+          <span className={styles.pill}>
+            <span className={styles.tDim}>Also works with:</span> OpenAI, Groq,
+            Ollama
+          </span>
+          <span className={styles.pill}>
+            <span className={styles.tDim}>Any language pair:</span> Korean →
+            English, etc.
+          </span>
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: "3rem" }}>
+          <Link href="/chat" className={styles.ctaPrimary}>
+            Try the web version
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          </Link>
+        </div>
+      </section>
+
+      {/* ─── Footer ─── */}
+      <footer className={styles.footer}>
+        <p className={styles.footerTitle}>open-language</p>
+        <p className={styles.footerDesc}>
+          Open source AI language tutor.{" "}
+          <code className={styles.code}>python main.py</code> to start.
+        </p>
+        <p className={styles.footerTech}>
+          Built with Gemini + Python + Next.js + SQLite
+        </p>
+      </footer>
     </div>
   );
 }
 
-function SectionHeader({ color, icon, children }: { color: string; icon: React.ReactNode; children: React.ReactNode }) {
+/* ─── Small helper components ─── */
+
+function SectionLabel({
+  color,
+  children,
+}: {
+  color: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-2.5 mb-4">
-      <span style={{ color }}>{icon}</span>
-      <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color }}>{children}</h2>
-      <div className="flex-1 h-px" style={{ background: `color-mix(in srgb, ${color} 25%, transparent)` }} />
+    <div className={styles.sectionLabel} data-color={color}>
+      {children}
     </div>
   );
 }
 
-function StatCard({ label, value, color }: { label: string; value: number; color?: string }) {
+function Line({
+  children,
+  blank,
+}: {
+  children?: React.ReactNode;
+  blank?: boolean;
+}) {
   return (
-    <div className="card text-center" style={color ? { borderTop: `3px solid ${color}` } : undefined}>
-      <div className="stat-value" style={color ? { color } : undefined}>{value}</div>
-      <div className="stat-label">{label}</div>
+    <span className={blank ? styles.lineBlank : styles.line}>{children}</span>
+  );
+}
+
+function Prompt({ children }: { children: React.ReactNode }) {
+  return (
+    <span>
+      <span className={styles.tPrompt}>You &gt; </span>
+      {children}
+    </span>
+  );
+}
+
+function Tutor() {
+  return <span className={styles.tTutor}>Tutor</span>;
+}
+
+function Gold({
+  children,
+  bold,
+}: {
+  children: React.ReactNode;
+  bold?: boolean;
+}) {
+  return (
+    <span className={`${styles.tGold} ${bold ? styles.tBold : ""}`}>
+      {children}
+    </span>
+  );
+}
+
+function ModeCard({
+  color,
+  icon,
+  title,
+  desc,
+  items,
+}: {
+  color: string;
+  icon: string;
+  title: string;
+  desc: string;
+  items: string[];
+}) {
+  return (
+    <div className={styles.modeCard} style={{ borderTop: `3px solid ${color}` }}>
+      <div className={styles.modeIcon} dangerouslySetInnerHTML={{ __html: icon }} />
+      <h3 className={styles.modeTitle}>{title}</h3>
+      <p className={styles.modeDesc}>{desc}</p>
+      <ul className={styles.modeItems}>
+        {items.map((item, i) => (
+          <li key={i} style={{ "--dot-color": color } as React.CSSProperties}>
+            {item}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
-function LoopCard({ num, title, children }: { num: number; title: string; children: React.ReactNode }) {
+function TrackItem({
+  color,
+  label,
+  children,
+}: {
+  color: string;
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
-          style={{ background: "rgba(98, 148, 184, 0.15)", color: "var(--river)" }}>{num}</span>
-        <h4 className="text-sm font-semibold" style={{ color: "var(--river)" }}>{title}</h4>
-      </div>
-      <p className="text-xs leading-relaxed" style={{ color: "var(--text-dim)" }}>{children}</p>
+    <div className={styles.trackItem}>
+      <span className={styles.trackLabel} style={{ color }}>
+        {label}
+      </span>
+      <span className={styles.trackDesc}>{children}</span>
     </div>
   );
 }

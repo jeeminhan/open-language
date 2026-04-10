@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Nav from "@/components/Nav";
-import LearnerSwitcher from "@/components/LearnerSwitcher";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Voice Tutor Dashboard",
-  description: "Track your language learning progress",
+  title: "open-language",
+  description: "AI language tutor that remembers your mistakes, adapts to your level, and gets smarter every session",
 };
 
 export default function RootLayout({
@@ -30,19 +28,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <div className="max-w-6xl mx-auto px-6 py-8 w-full">
-          <header className="mb-2 flex items-center justify-between">
-            <h1
-              className="text-2xl font-bold tracking-tight"
-              style={{ color: "var(--gold)" }}
-            >
-              Voice Tutor
-            </h1>
-            <LearnerSwitcher />
-          </header>
-          <Nav />
-          <main>{children}</main>
-        </div>
+        {children}
       </body>
     </html>
   );

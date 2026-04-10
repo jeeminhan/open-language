@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+voice_tutor.db
+voice_tutor.db-shm
+voice_tutor.db-wal
+exports/
+.DS_Store
+.gstack/
+node_modules/
+.next/

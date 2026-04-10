@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>open-language — AI Language Tutor That Learns You</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --bg-card: #12121a;
+    --bg-hover: #1a1a26;
+    --bg-terminal: #0d0d14;
+    --text: #e0ddd5;
+    --text-dim: #8a8780;
+    --gold: #c4b99a;
+    --ember: #c45e4a;
+    --moss: #6b9a5b;
+    --river: #5b7e9a;
+    --border: #2a2a36;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  }
+
+  /* ─── Hero ─── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+    position: relative;
+  }
+
+  .hero::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 200px;
+    background: linear-gradient(to bottom, transparent, var(--bg));
+    pointer-events: none;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 1rem;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+  }
+
+  .hero-badge span { color: var(--moss); }
+
+  .hero h1 {
+    font-size: clamp(3rem, 1rem + 7vw, 7rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    margin-bottom: 1.5rem;
+  }
+
+  .hero h1 .accent { color: var(--gold); }
+
+  .hero p.subtitle {
+    font-size: clamp(1rem, 0.8rem + 1vw, 1.35rem);
+    color: var(--text-dim);
+    max-width: 600px;
+    margin-bottom: 3rem;
+  }
+
+  .hero-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 2rem;
+    border-radius: 12px;
+    background: var(--gold);
+    color: var(--bg);
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: transform 0.2s, opacity 0.2s;
+    cursor: default;
+  }
+
+  .hero-cta:hover { transform: translateY(-2px); opacity: 0.9; }
+
+  .hero-cta code {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 0.85rem;
+    background: rgba(0,0,0,0.15);
+    padding: 0.15rem 0.5rem;
+    border-radius: 6px;
+  }
+
+  /* ─── Section layout ─── */
+  section { padding: 6rem 2rem; max-width: 1100px; margin: 0 auto; }
+
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  .section-label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+  }
+
+  .section-label.gold { color: var(--gold); }
+  .section-label.gold::after { background: linear-gradient(to right, color-mix(in srgb, var(--gold) 30%, transparent), transparent); }
+  .section-label.ember { color: var(--ember); }
+  .section-label.ember::after { background: linear-gradient(to right, color-mix(in srgb, var(--ember) 30%, transparent), transparent); }
+  .section-label.river { color: var(--river); }
+  .section-label.river::after { background: linear-gradient(to right, color-mix(in srgb, var(--river) 30%, transparent), transparent); }
+  .section-label.moss { color: var(--moss); }
+  .section-label.moss::after { background: linear-gradient(to right, color-mix(in srgb, var(--moss) 30%, transparent), transparent); }
+
+  h2 {
+    font-size: clamp(1.8rem, 1rem + 3vw, 2.8rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin-bottom: 1rem;
+  }
+
+  h2 .dim { color: var(--text-dim); }
+
+  .section-desc {
+    font-size: 1.05rem;
+    color: var(--text-dim);
+    max-width: 640px;
+    margin-bottom: 3rem;
+  }
+
+  /* ─── Terminal mockup ─── */
+  .terminal {
+    background: var(--bg-terminal);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    line-height: 1.65;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .terminal-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .terminal-dot.red { background: #ff5f56; }
+  .terminal-dot.yellow { background: #ffbd2e; }
+  .terminal-dot.green { background: #27c93f; }
+
+  .terminal-title {
+    flex: 1;
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+  }
+
+  .terminal-body { padding: 1.25rem 1.5rem; overflow-x: auto; }
+
+  .t-dim { color: var(--text-dim); }
+  .t-green { color: var(--moss); }
+  .t-gold { color: var(--gold); }
+  .t-ember { color: var(--ember); }
+  .t-river { color: var(--river); }
+  .t-cyan { color: #6bcbc8; }
+  .t-bold { font-weight: 700; }
+  .t-white { color: var(--text); }
+  .t-italic { font-style: italic; }
+
+  .t-line { display: block; min-height: 1.65em; }
+  .t-line.blank { min-height: 0.8em; }
+
+  .t-prompt::before {
+    content: "You > ";
+    color: var(--moss);
+    font-weight: 700;
+  }
+
+  .t-tutor::before {
+    content: "Tutor";
+    color: var(--river);
+    font-weight: 700;
+    display: block;
+  }
+
+  /* ─── Feature grid ─── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .feature-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+
+  .feature-card:hover {
+    border-color: var(--gold);
+    transform: translateY(-3px);
+  }
+
+  .feature-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+  }
+
+  .feature-card h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .feature-card p {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    line-height: 1.55;
+  }
+
+  /* ─── Flow diagram ─── */
+  .flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    padding: 2rem 0;
+  }
+
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .flow-node {
+    padding: 0.6rem 1.1rem;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1px solid;
+  }
+
+  .flow-arrow {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    padding: 0 0.4rem;
+    user-select: none;
+  }
+
+  /* ─── Bento grid ─── */
+  .bento {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+  }
+
+  .bento-wide { grid-column: span 2; }
+  .bento-tall { grid-row: span 2; }
+
+  .bento-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bento-card h3 {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.75rem;
+  }
+
+  /* ─── Loop cards ─── */
+  .loop-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+    flex-shrink: 0;
+  }
+
+  .loops-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+
+  .loop-card {
+    display: flex;
+    gap: 0.85rem;
+    align-items: flex-start;
+    padding: 1rem 1.25rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  .loop-card h4 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+
+  .loop-card p {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  /* ─── Two-up ─── */
+  .two-up {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  /* ─── Stat pills ─── */
+  .stat-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 1.5rem;
+  }
+
+  .stat-pill {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem 1.25rem;
+    text-align: center;
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .stat-pill .num {
+    font-size: 1.5rem;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .stat-pill .label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 0.15rem;
+  }
+
+  /* ─── Mode cards ─── */
+  .mode-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+  }
+
+  .mode-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 2rem;
+    text-align: center;
+  }
+
+  .mode-card .mode-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .mode-card h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .mode-card p { font-size: 0.85rem; color: var(--text-dim); }
+
+  .mode-card ul {
+    list-style: none;
+    margin-top: 1rem;
+    text-align: left;
+  }
+
+  .mode-card li {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    padding: 0.3rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .mode-card li::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .mode-text li::before { background: var(--gold); }
+  .mode-voice li::before { background: var(--river); }
+
+  /* ─── Footer ─── */
+  footer {
+    padding: 4rem 2rem;
+    text-align: center;
+    border-top: 1px solid var(--border);
+  }
+
+  footer p {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+  }
+
+  footer code {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg-card);
+    padding: 0.15rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 0.8rem;
+    color: var(--gold);
+  }
+
+  /* ─── Responsive ─── */
+  /* ─── Journal mockup ─── */
+  .journal-page {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 2rem 2.5rem;
+    max-width: 640px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .journal-page::before {
+    content: "";
+    position: absolute;
+    left: 2rem;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(196, 185, 154, 0.12);
+  }
+
+  .journal-date {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--gold);
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .journal-entry {
+    padding-left: 1.25rem;
+    font-size: 0.9rem;
+    line-height: 1.85;
+    color: var(--text);
+  }
+
+  .journal-entry p { margin-bottom: 0.75rem; }
+
+  .journal-entry .hmm {
+    display: inline-block;
+    color: var(--gold);
+    font-size: 0.75rem;
+    opacity: 0.6;
+    margin-left: 0.5rem;
+    font-style: italic;
+  }
+
+  .journal-feedback {
+    margin-top: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    background: rgba(196, 185, 154, 0.06);
+    border: 1px solid rgba(196, 185, 154, 0.15);
+    border-radius: 12px;
+  }
+
+  .journal-feedback h4 {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--gold);
+    margin-bottom: 0.75rem;
+  }
+
+  .journal-correction {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    margin-bottom: 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .journal-correction .strike {
+    color: var(--ember);
+    text-decoration: line-through;
+    text-decoration-color: rgba(196, 94, 74, 0.5);
+  }
+
+  .journal-correction .fix {
+    color: var(--moss);
+    font-weight: 600;
+  }
+
+  .journal-correction .arrow {
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
+  .journal-vs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  @media (max-width: 768px) {
+    .two-up, .mode-cards, .bento, .journal-vs { grid-template-columns: 1fr; }
+    .bento-wide { grid-column: span 1; }
+    .flow { gap: 0.25rem; }
+    .flow-step { margin-bottom: 0.5rem; }
+    section { padding: 4rem 1.25rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── HERO ─── -->
+<div class="hero">
+  <div class="hero-badge">
+    <span>open source</span> &middot; CLI + Dashboard &middot; Any language pair
+  </div>
+  <h1>open<span class="accent">-</span>language</h1>
+  <p class="subtitle">
+    An AI language tutor that remembers your mistakes, adapts to your level, and gets smarter every session.
+  </p>
+  <a class="hero-cta">
+    <code>python main.py</code>
+    to start learning
+  </a>
+</div>
+
+<!-- ─── WHAT IT DOES ─── -->
+<section>
+  <div class="section-label gold">What It Does</div>
+  <h2>Have a real conversation. <span class="dim">Get real feedback.</span></h2>
+  <p class="section-desc">
+    Talk to an AI tutor that corrects you like a good friend would &mdash; naturally, not robotically.
+    It tracks every error, learns your weak points, and steers future conversations toward what you need to practice.
+  </p>
+
+  <div class="terminal" style="max-width: 720px;">
+    <div class="terminal-bar">
+      <div class="terminal-dot red"></div>
+      <div class="terminal-dot yellow"></div>
+      <div class="terminal-dot green"></div>
+      <div class="terminal-title">open-language &mdash; Session #14</div>
+    </div>
+    <div class="terminal-body">
+      <span class="t-line t-prompt"><span class="t-white">I goed to the store yesterday and buyed some fruits</span></span>
+      <span class="t-line blank"></span>
+      <span class="t-line t-tutor"></span>
+      <span class="t-line"><span class="t-white">&nbsp;&nbsp;Oh nice! I <span class="t-gold t-bold">went</span> to the farmer's market last weekend too.</span></span>
+      <span class="t-line"><span class="t-white">&nbsp;&nbsp;What kind of fruit did you <span class="t-gold t-bold">buy</span>? I've been really into</span></span>
+      <span class="t-line"><span class="t-white">&nbsp;&nbsp;persimmons lately.</span></span>
+      <span class="t-line blank"></span>
+      <span class="t-line t-prompt"><span class="t-white">I buyed apples and some persimmon too!</span></span>
+      <span class="t-line blank"></span>
+      <span class="t-line t-tutor"></span>
+      <span class="t-line"><span class="t-white">&nbsp;&nbsp;Persimmons are so good this time of year! Just a quick</span></span>
+      <span class="t-line"><span class="t-white">&nbsp;&nbsp;note &mdash; the past tense of "buy" is <span class="t-gold t-bold">"bought"</span>, not "buyed".</span></span>
+      <span class="t-line"><span class="t-white">&nbsp;&nbsp;It's irregular, like go/went. </span><span class="t-dim">(Korean doesn't have</span></span>
+      <span class="t-line"><span class="t-dim">&nbsp;&nbsp;irregular verbs, so this is a tricky one!)</span></span>
+      <span class="t-line"><span class="t-white">&nbsp;&nbsp;Do you prefer the crunchy or soft kind?</span></span>
+    </div>
+  </div>
+
+  <p style="text-align: center; color: var(--text-dim); font-size: 0.8rem; margin-top: 1.5rem;">
+    First time &rarr; models correctly in response. Second time &rarr; recasts prominently. Third time &rarr; explains gently.
+  </p>
+</section>
+
+<!-- ─── TWO MODES ─── -->
+<section>
+  <div class="section-label river">Three Modes</div>
+  <h2>Type, speak, or journal. <span class="dim">Your choice.</span></h2>
+
+  <div class="mode-cards">
+    <div class="mode-card mode-text" style="border-top: 3px solid var(--gold);">
+      <div class="mode-icon">&gt;_</div>
+      <h3>Text Mode</h3>
+      <p>Type your responses. Great for focused grammar practice and studying on the go.</p>
+      <ul>
+        <li>Zero setup required</li>
+        <li>Slash commands for stats</li>
+        <li>Review corrections at your own pace</li>
+      </ul>
+    </div>
+    <div class="mode-card mode-voice" style="border-top: 3px solid var(--river);">
+      <div class="mode-icon">&laquo;))</div>
+      <h3>Voice Mode</h3>
+      <p>Speak and listen. Push-to-talk recording with real-time transcription and text-to-speech.</p>
+      <ul>
+        <li>Whisper-powered speech recognition</li>
+        <li>macOS TTS for tutor responses</li>
+        <li>Silence detection auto-stops</li>
+        <li>Type mid-session if needed</li>
+      </ul>
+    </div>
+    <div class="mode-card" style="border-top: 3px solid var(--gold);">
+      <div class="mode-icon" style="color: var(--gold);">&#x1F4D6;</div>
+      <h3>Journal Mode</h3>
+      <p>Speak or write freely with no interruptions. Corrections come only after you're done.</p>
+      <ul style="list-style: none;">
+        <li style="display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.8rem; color: var(--text-dim);">
+          <span style="width: 5px; height: 5px; border-radius: 50%; background: var(--gold); flex-shrink: 0;"></span>
+          No corrections while you write
+        </li>
+        <li style="display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.8rem; color: var(--text-dim);">
+          <span style="width: 5px; height: 5px; border-radius: 50%; background: var(--gold); flex-shrink: 0;"></span>
+          Flowing diary-style layout
+        </li>
+        <li style="display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.8rem; color: var(--text-dim);">
+          <span style="width: 5px; height: 5px; border-radius: 50%; background: var(--gold); flex-shrink: 0;"></span>
+          Full error report when finished
+        </li>
+        <li style="display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.8rem; color: var(--text-dim);">
+          <span style="width: 5px; height: 5px; border-radius: 50%; background: var(--gold); flex-shrink: 0;"></span>
+          Builds fluency without anxiety
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ─── JOURNAL MODE DEEP DIVE ─── -->
+<section>
+  <div class="section-label gold">Journal Mode</div>
+  <h2>Write freely first. <span class="dim">Learn from mistakes after.</span></h2>
+  <p class="section-desc">
+    Journal mode flips the script: you speak or type your thoughts with zero interruptions.
+    The tutor stays silent &mdash; just a quiet "hmm" or "yeah" so you know it's listening.
+    When you're done, you get a full error report with corrections.
+  </p>
+
+  <div class="journal-vs">
+    <!-- Journal entry -->
+    <div>
+      <div class="journal-page">
+        <div class="journal-date">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+          Thursday, April 10
+        </div>
+        <div class="journal-entry">
+          <p>오늘 회사에서 정말 바쁜 하루였어요. 아침부터 미팅이 많았고 점심도 제대로 못 먹었어요.</p>
+          <p>퇴근 후에 친구를 만나서 카페에 갔는데, 새로운 디저트를 먹어봤어요. 너무 맛있었어요! <span class="hmm">응...</span></p>
+          <p>요즘 한국어 공부가 좀 어려운 것 같아요. 특히 존댓말이랑 반말을 언제 써야 하는지 헷갈려요. <span class="hmm">그렇군요</span></p>
+          <p>내일은 좀 더 여유로운 하루가 됐으면 좋겠어요.</p>
+        </div>
+      </div>
+      <p style="text-align: center; color: var(--text-dim); font-size: 0.75rem; margin-top: 1rem;">
+        The tutor only gives tiny acknowledgments &mdash; like a diary that hums.
+      </p>
+    </div>
+
+    <!-- Feedback after -->
+    <div>
+      <div class="journal-feedback" style="margin-top: 0;">
+        <h4>Post-Journal Corrections</h4>
+        <p style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 1rem;">
+          These appear only after you press "Done" &mdash; never during writing.
+        </p>
+
+        <div class="journal-correction">
+          <span class="arrow">&rarr;</span>
+          <div>
+            <span class="strike">바쁜 하루였어요</span>
+            <span class="fix"> &nbsp;바쁜 하루를 보냈어요</span>
+            <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.2rem;">
+              More natural phrasing &mdash; "spent a busy day" vs "it was a busy day"
+            </div>
+          </div>
+        </div>
+
+        <div class="journal-correction">
+          <span class="arrow">&rarr;</span>
+          <div>
+            <span class="strike">됐으면</span>
+            <span class="fix"> &nbsp;되었으면</span>
+            <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.2rem;">
+              Written Korean prefers the full form over the contracted spoken form
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+          <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); margin-bottom: 0.5rem;">What you did well</div>
+          <div style="font-size: 0.78rem; color: var(--text-dim); display: flex; flex-direction: column; gap: 0.35rem;">
+            <div>+ Natural use of &mdash;(으)ㄴ 것 같아요 for expressing uncertainty</div>
+            <div>+ Correct honorific level throughout (polite &mdash;요 form)</div>
+            <div>+ Good topic variety and sentence connectors</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 1.25rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem;">
+        <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--river); margin-bottom: 0.75rem;">Why journal mode?</div>
+        <div style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.78rem; color: var(--text-dim);">
+          <div style="display: flex; gap: 0.5rem;"><span style="color: var(--river);">1.</span> Builds fluency &mdash; uninterrupted output trains your brain to produce language without pausing</div>
+          <div style="display: flex; gap: 0.5rem;"><span style="color: var(--river);">2.</span> Reduces anxiety &mdash; no fear of being corrected mid-thought</div>
+          <div style="display: flex; gap: 0.5rem;"><span style="color: var(--river);">3.</span> Better error quality &mdash; reviewing corrections after writing is more effective than real-time interruption</div>
+          <div style="display: flex; gap: 0.5rem;"><span style="color: var(--river);">4.</span> Captures natural speech &mdash; errors in free expression reveal your true level</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── BEHIND THE SCENES ─── -->
+<section>
+  <div class="section-label ember">Behind Every Turn</div>
+  <h2>The tutor analyzes <span class="dim">everything you say.</span></h2>
+  <p class="section-desc">
+    Every message you send is parsed for errors, grammar patterns, vocabulary, and fluency signals.
+    This data feeds 9 learning loops that make the tutor smarter over time.
+  </p>
+
+  <div class="two-up">
+    <div class="terminal" style="font-size: 0.72rem;">
+      <div class="terminal-bar">
+        <div class="terminal-dot red"></div>
+        <div class="terminal-dot yellow"></div>
+        <div class="terminal-dot green"></div>
+        <div class="terminal-title">analysis (hidden from learner)</div>
+      </div>
+      <div class="terminal-body">
+<span class="t-line"><span class="t-dim">{</span></span>
+<span class="t-line"><span class="t-dim">  "errors": [{</span></span>
+<span class="t-line"><span class="t-dim">    "type":</span> <span class="t-ember">"irregular_past_tense"</span><span class="t-dim">,</span></span>
+<span class="t-line"><span class="t-dim">    "observed":</span> <span class="t-ember">"buyed"</span><span class="t-dim">,</span></span>
+<span class="t-line"><span class="t-dim">    "expected":</span> <span class="t-green">"bought"</span><span class="t-dim">,</span></span>
+<span class="t-line"><span class="t-dim">    "l1_source":</span> <span class="t-river">"Korean has regular</span></span>
+<span class="t-line"><span class="t-river">      conjugation &mdash; no irregular forms"</span></span>
+<span class="t-line"><span class="t-dim">  }],</span></span>
+<span class="t-line"><span class="t-dim">  "grammar_used_correctly": [{</span></span>
+<span class="t-line"><span class="t-dim">    "pattern":</span> <span class="t-green">"past_tense_marker"</span><span class="t-dim">,</span></span>
+<span class="t-line"><span class="t-dim">    "level":</span> <span class="t-gold">"A2"</span></span>
+<span class="t-line"><span class="t-dim">  }],</span></span>
+<span class="t-line"><span class="t-dim">  "correction_action":</span> <span class="t-gold">"recast"</span><span class="t-dim">,</span></span>
+<span class="t-line"><span class="t-dim">  "vocabulary_used":</span> <span class="t-cyan">["store","fruits"]</span></span>
+<span class="t-line"><span class="t-dim">}</span></span>
+      </div>
+    </div>
+
+    <div>
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1.25rem;">What gets tracked:</h3>
+      <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+        <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+          <span style="color: var(--ember); font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">Errors</span>
+          <span style="color: var(--text-dim); font-size: 0.85rem;">Categorized, counted, linked to L1 interference patterns</span>
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+          <span style="color: var(--moss); font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">Grammar</span>
+          <span style="color: var(--text-dim); font-size: 0.85rem;">Correct and incorrect uses tracked for mastery percentage</span>
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+          <span style="color: var(--river); font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">Vocabulary</span>
+          <span style="color: var(--text-dim); font-size: 0.85rem;">Every unique word logged, unknown words flagged for review</span>
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+          <span style="color: var(--gold); font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">Fluency</span>
+          <span style="color: var(--text-dim); font-size: 0.85rem;">Hesitation, self-correction, code-switching, confidence</span>
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+          <span style="color: var(--moss); font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">Interests</span>
+          <span style="color: var(--text-dim); font-size: 0.85rem;">Books, music, hobbies detected &mdash; used to personalize topics</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 9 LEARNING LOOPS ─── -->
+<section>
+  <div class="section-label river">Self-Learning System</div>
+  <h2>9 feedback loops <span class="dim">that compound.</span></h2>
+  <p class="section-desc">
+    The tutor doesn't just respond &mdash; it evaluates itself, clusters your errors by root cause,
+    builds a spaced repetition queue, and adapts its difficulty. Every session makes the next one better.
+  </p>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-node" style="background: rgba(196,185,154,0.1); border-color: var(--gold); color: var(--gold);">You speak</div>
+      <span class="flow-arrow">&rarr;</span>
+    </div>
+    <div class="flow-step">
+      <div class="flow-node" style="background: rgba(196,78,74,0.1); border-color: var(--ember); color: var(--ember);">Errors detected</div>
+      <span class="flow-arrow">&rarr;</span>
+    </div>
+    <div class="flow-step">
+      <div class="flow-node" style="background: rgba(91,126,154,0.1); border-color: var(--river); color: var(--river);">Clustered &amp; tagged</div>
+      <span class="flow-arrow">&rarr;</span>
+    </div>
+    <div class="flow-step">
+      <div class="flow-node" style="background: rgba(107,154,91,0.1); border-color: var(--moss); color: var(--moss);">Tutor adapts</div>
+      <span class="flow-arrow">&rarr;</span>
+    </div>
+    <div class="flow-step">
+      <div class="flow-node" style="background: rgba(196,185,154,0.1); border-color: var(--gold); color: var(--gold);">Better next session</div>
+    </div>
+  </div>
+
+  <div class="loops-grid" style="margin-top: 2rem;">
+    <div class="loop-card">
+      <span class="loop-num" style="background: rgba(91,126,154,0.15); color: var(--river);">1</span>
+      <div>
+        <h4>Adaptive Difficulty</h4>
+        <p>Computes your real level from grammar mastery and error rate. Pushes harder content as you improve.</p>
+      </div>
+    </div>
+    <div class="loop-card">
+      <span class="loop-num" style="background: rgba(91,126,154,0.15); color: var(--river);">2</span>
+      <div>
+        <h4>Spaced Repetition</h4>
+        <p>Prioritizes patterns you struggle with and steers conversation toward them at optimal intervals.</p>
+      </div>
+    </div>
+    <div class="loop-card">
+      <span class="loop-num" style="background: rgba(91,126,154,0.15); color: var(--river);">3</span>
+      <div>
+        <h4>L1 Interference</h4>
+        <p>Identifies errors caused by native language habits and explains <em>why</em> you make the mistake.</p>
+      </div>
+    </div>
+    <div class="loop-card">
+      <span class="loop-num" style="background: rgba(91,126,154,0.15); color: var(--river);">4</span>
+      <div>
+        <h4>Second-Pass Review</h4>
+        <p>After each session, an outside agent reviews the full conversation to catch missed errors.</p>
+      </div>
+    </div>
+    <div class="loop-card">
+      <span class="loop-num" style="background: rgba(91,126,154,0.15); color: var(--river);">5</span>
+      <div>
+        <h4>Tutor Self-Evaluation</h4>
+        <p>Grades its own responses for correction quality and missed teaching moments.</p>
+      </div>
+    </div>
+    <div class="loop-card">
+      <span class="loop-num" style="background: rgba(91,126,154,0.15); color: var(--river);">6</span>
+      <div>
+        <h4>Error Clustering</h4>
+        <p>Groups related errors by root cause with specific fix recommendations instead of isolated mistakes.</p>
+      </div>
+    </div>
+    <div class="loop-card">
+      <span class="loop-num" style="background: rgba(91,126,154,0.15); color: var(--river);">7</span>
+      <div>
+        <h4>Vocab Tracking</h4>
+        <p>When you ask what a word means, it's saved. Builds a personal dictionary of words you're learning.</p>
+      </div>
+    </div>
+    <div class="loop-card">
+      <span class="loop-num" style="background: rgba(91,126,154,0.15); color: var(--river);">8</span>
+      <div>
+        <h4>Topic Difficulty</h4>
+        <p>Each conversation is scored for difficulty so future topic suggestions match your current level.</p>
+      </div>
+    </div>
+    <div class="loop-card">
+      <span class="loop-num" style="background: rgba(91,126,154,0.15); color: var(--river);">9</span>
+      <div>
+        <h4>Interest Profiling</h4>
+        <p>Detects your interests from conversations and generates personalized topics you actually want to discuss.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── DASHBOARD ─── -->
+<section>
+  <div class="section-label moss">Dashboard</div>
+  <h2>See your progress. <span class="dim">All the data, visualized.</span></h2>
+  <p class="section-desc">
+    A local Next.js dashboard reads from the same SQLite database.
+    Review your error patterns, grammar mastery, vocabulary growth, and session history.
+  </p>
+
+  <div class="bento">
+    <div class="bento-card bento-wide" style="border-top: 3px solid var(--gold);">
+      <h3 style="color: var(--gold);">Overview</h3>
+      <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+        <div style="text-align: center; flex: 1; min-width: 80px;">
+          <div style="font-size: 1.75rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--gold);">14</div>
+          <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">Sessions</div>
+        </div>
+        <div style="text-align: center; flex: 1; min-width: 80px;">
+          <div style="font-size: 1.75rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--gold);">4.2</div>
+          <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">Hours</div>
+        </div>
+        <div style="text-align: center; flex: 1; min-width: 80px;">
+          <div style="font-size: 1.75rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--gold);">312</div>
+          <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">Turns</div>
+        </div>
+        <div style="text-align: center; flex: 1; min-width: 80px;">
+          <div style="font-size: 1.75rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--gold);">487</div>
+          <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;">Words</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bento-card" style="border-top: 3px solid var(--river);">
+      <h3 style="color: var(--river);">Computed Level</h3>
+      <div style="font-size: 2.5rem; font-weight: 800; color: var(--river); font-family: 'JetBrains Mono', monospace;">B1</div>
+      <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem;">72% mastery, 8% error rate</div>
+      <div style="margin-top: 0.75rem; height: 6px; border-radius: 3px; background: var(--border);">
+        <div style="height: 100%; width: 72%; border-radius: 3px; background: var(--river);"></div>
+      </div>
+    </div>
+
+    <div class="bento-card" style="border-top: 3px solid var(--ember);">
+      <h3 style="color: var(--ember);">Top Errors</h3>
+      <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.78rem;">
+        <div style="display: flex; justify-content: space-between;">
+          <span>Irregular past tense</span>
+          <span style="color: var(--ember);">12x</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>Article omission</span>
+          <span style="color: var(--ember);">8x</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>Subject-verb agreement</span>
+          <span style="color: var(--gold);">5x</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bento-card" style="border-top: 3px solid var(--moss);">
+      <h3 style="color: var(--moss);">Grammar Mastery</h3>
+      <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.78rem;">
+        <div style="display: flex; justify-content: space-between;">
+          <span>Simple past</span>
+          <span style="color: var(--moss);">85%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>Present perfect</span>
+          <span style="color: var(--gold);">62%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>Conditionals</span>
+          <span style="color: var(--ember);">28%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bento-card bento-wide" style="border-top: 3px solid var(--moss);">
+      <h3 style="color: var(--moss);">Detected Interests</h3>
+      <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
+        <span style="background: rgba(107,154,91,0.1); border: 1px solid rgba(107,154,91,0.2); padding: 0.3rem 0.75rem; border-radius: 8px; font-size: 0.78rem;">&#x1F3B5; K-pop</span>
+        <span style="background: rgba(107,154,91,0.1); border: 1px solid rgba(107,154,91,0.2); padding: 0.3rem 0.75rem; border-radius: 8px; font-size: 0.78rem;">&#x1F372; Cooking</span>
+        <span style="background: rgba(107,154,91,0.1); border: 1px solid rgba(107,154,91,0.2); padding: 0.3rem 0.75rem; border-radius: 8px; font-size: 0.78rem;">&#x1F3AE; Zelda</span>
+        <span style="background: rgba(107,154,91,0.1); border: 1px solid rgba(107,154,91,0.2); padding: 0.3rem 0.75rem; border-radius: 8px; font-size: 0.78rem;">&#x1F4DA; Murakami</span>
+        <span style="background: rgba(107,154,91,0.1); border: 1px solid rgba(107,154,91,0.2); padding: 0.3rem 0.75rem; border-radius: 8px; font-size: 0.78rem;">&#x2708;&#xFE0F; Japan travel</span>
+      </div>
+      <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.75rem;">
+        The tutor uses these to generate conversation topics you actually want to talk about.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── COMMANDS ─── -->
+<section>
+  <div class="section-label gold">Built-In Commands</div>
+  <h2>Everything at <span class="dim">a slash away.</span></h2>
+
+  <div class="terminal" style="max-width: 560px;">
+    <div class="terminal-bar">
+      <div class="terminal-dot red"></div>
+      <div class="terminal-dot yellow"></div>
+      <div class="terminal-dot green"></div>
+      <div class="terminal-title">commands</div>
+    </div>
+    <div class="terminal-body">
+<span class="t-line"><span class="t-green t-bold">/status</span>   <span class="t-dim">&mdash; Profile summary + top errors</span></span>
+<span class="t-line"><span class="t-green t-bold">/errors</span>   <span class="t-dim">&mdash; All error patterns with counts</span></span>
+<span class="t-line"><span class="t-green t-bold">/grammar</span>  <span class="t-dim">&mdash; Grammar inventory by mastery %</span></span>
+<span class="t-line"><span class="t-green t-bold">/vocab</span>    <span class="t-dim">&mdash; Vocabulary stats</span></span>
+<span class="t-line"><span class="t-green t-bold">/history</span>  <span class="t-dim">&mdash; Past session summaries</span></span>
+<span class="t-line"><span class="t-green t-bold">/test</span>     <span class="t-dim">&mdash; Take a level test</span></span>
+<span class="t-line"><span class="t-green t-bold">/turns</span>    <span class="t-dim">&mdash; Progress toward fine-tuning goal</span></span>
+<span class="t-line"><span class="t-green t-bold">/export</span>   <span class="t-dim">&mdash; Export JSONL for fine-tuning</span></span>
+<span class="t-line"><span class="t-green t-bold">/annotate</span> <span class="t-dim">&mdash; Rate last turn quality (1-5)</span></span>
+<span class="t-line"><span class="t-green t-bold">/level</span>    <span class="t-dim">&mdash; Update proficiency level</span></span>
+    </div>
+  </div>
+</section>
+
+<!-- ─── SETUP ─── -->
+<section>
+  <div class="section-label moss">Get Started</div>
+  <h2>Running in <span class="dim">under a minute.</span></h2>
+
+  <div class="terminal" style="max-width: 620px;">
+    <div class="terminal-bar">
+      <div class="terminal-dot red"></div>
+      <div class="terminal-dot yellow"></div>
+      <div class="terminal-dot green"></div>
+      <div class="terminal-title">setup</div>
+    </div>
+    <div class="terminal-body">
+<span class="t-line"><span class="t-dim"># Clone and install</span></span>
+<span class="t-line"><span class="t-gold">$</span> <span class="t-white">git clone https://github.com/jeeminhan/open-language</span></span>
+<span class="t-line"><span class="t-gold">$</span> <span class="t-white">cd open-language</span></span>
+<span class="t-line"><span class="t-gold">$</span> <span class="t-white">pip install -r requirements.txt</span></span>
+<span class="t-line blank"></span>
+<span class="t-line"><span class="t-dim"># Add your API key</span></span>
+<span class="t-line"><span class="t-gold">$</span> <span class="t-white">echo "LLM_API_KEY=your-key-here" > .env</span></span>
+<span class="t-line blank"></span>
+<span class="t-line"><span class="t-dim"># Start learning</span></span>
+<span class="t-line"><span class="t-gold">$</span> <span class="t-white">python main.py</span></span>
+<span class="t-line blank"></span>
+<span class="t-line"><span class="t-dim"># Optional: launch the dashboard</span></span>
+<span class="t-line"><span class="t-gold">$</span> <span class="t-white">cd dashboard && npm run dev</span></span>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 1.25rem; flex-wrap: wrap; margin-top: 2rem; justify-content: center;">
+    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1.5rem; font-size: 0.82rem;">
+      <span style="color: var(--text-dim);">Default LLM:</span> <span style="color: var(--gold); font-weight: 600;">Gemini 2.5 Flash</span>
+    </div>
+    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1.5rem; font-size: 0.82rem;">
+      <span style="color: var(--text-dim);">Also works with:</span> <span style="color: var(--text);">OpenAI, Groq, Ollama</span>
+    </div>
+    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1.5rem; font-size: 0.82rem;">
+      <span style="color: var(--text-dim);">Any language pair:</span> <span style="color: var(--text);">Korean &rarr; English, etc.</span>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.75rem;">open-language</p>
+  <p>Open source AI language tutor. <code>python main.py</code> to start.</p>
+  <p style="margin-top: 1.5rem; font-size: 0.75rem;">Built with Gemini + Python + Next.js + SQLite</p>
+</footer>
+
+</body>
+</html>

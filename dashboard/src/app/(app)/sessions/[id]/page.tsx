@@ -1,5 +1,4 @@
-import { getSession, getSessionTurns, isDbAvailable } from "@/lib/db";
-import LocalOnly from "@/components/LocalOnly";
+import { getSession, getSessionTurns } from "@/lib/db";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +8,8 @@ export default async function SessionDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  if (!isDbAvailable()) return <LocalOnly />;
   const { id } = await params;
-  const session = getSession(id);
+  const session = await getSession(id);
 
   if (!session) {
     return (
@@ -24,7 +22,7 @@ export default async function SessionDetailPage({
     );
   }
 
-  const turns = getSessionTurns(id);
+  const turns = await getSessionTurns(id);
 
   return (
     <div>

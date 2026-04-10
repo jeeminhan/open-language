@@ -1,5 +1,4 @@
-import { getLearner, getGrammar, isDbAvailable } from "@/lib/db";
-import LocalOnly from "@/components/LocalOnly";
+import { getLearner, getGrammar } from "@/lib/db";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
@@ -19,13 +18,12 @@ function masteryBg(score: number, total: number): string {
 }
 
 export default async function GrammarPage() {
-  if (!isDbAvailable()) return <LocalOnly />;
   const cookieStore = await cookies();
   const learnerId = cookieStore.get("active_learner")?.value;
-  const learner = getLearner(learnerId);
+  const learner = await getLearner(learnerId);
   if (!learner) return <p style={{ color: "var(--text-dim)" }}>No data.</p>;
 
-  const grammar = getGrammar(learner.id);
+  const grammar = await getGrammar(learner.id);
 
   return (
     <div>

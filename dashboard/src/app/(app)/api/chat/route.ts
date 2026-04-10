@@ -13,10 +13,10 @@ export async function POST(request: Request) {
   let learner;
   if (learnerId) {
     const db = await import("@/lib/db");
-    learner = db.getAllLearners().find((l) => l.id === learnerId);
+    learner = (await db.getAllLearners()).find((l) => l.id === learnerId);
   }
   if (!learner) {
-    learner = getLearner(getActiveLearnerIdFromRequest(request));
+    learner = await getLearner(getActiveLearnerIdFromRequest(request));
   }
   if (!learner) {
     return Response.json({ error: "No learner profile found" }, { status: 404 });
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   // Get or create session
   let activeSessionId = sessionId;
   if (!activeSessionId) {
-    const session = createSession(learner.id, "web");
+    const session = await createSession(learner.id, "web");
     activeSessionId = session.id;
   }
 

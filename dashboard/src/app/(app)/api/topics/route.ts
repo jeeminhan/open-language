@@ -53,17 +53,17 @@ async function geminiWebLookup(query: string): Promise<{ snippet: string; url: s
 }
 
 export async function GET(request: Request) {
-  const learner = getLearner(getActiveLearnerIdFromRequest(request));
+  const learner = await getLearner(getActiveLearnerIdFromRequest(request));
   if (!learner) {
     return Response.json({ error: "No learner found" }, { status: 404 });
   }
 
-  const interests = getInterests(learner.id);
-  const weakGrammar = getWeakGrammar(learner.id);
-  const activeErrors = getActiveErrors(learner.id, 5);
+  const interests = await getInterests(learner.id);
+  const weakGrammar = await getWeakGrammar(learner.id);
+  const activeErrors = await getActiveErrors(learner.id, 5);
 
   // Check for cached unused topics first
-  const cached = getCachedTopics(learner.id, 5);
+  const cached = await getCachedTopics(learner.id, 5);
   if (cached.length >= 3) {
     return Response.json({
       topics: cached.map((t) => ({
@@ -188,7 +188,7 @@ No markdown, only JSON.` }] }],
       sourceUrl: null,
       interestId: null,
     }));
-    cacheTopics(learner.id, toCache);
+    await cacheTopics(learner.id, toCache);
 
     return Response.json({
       topics: parsed.map((t: { topic: string; context?: string; web_detail?: string; grammar_target?: string; interest_connection?: string }) => ({

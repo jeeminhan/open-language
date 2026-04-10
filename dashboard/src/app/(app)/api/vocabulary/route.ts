@@ -1,17 +1,17 @@
 import { getLearner, getVocabulary, markVocabUnknown, markVocabKnown, getActiveLearnerIdFromRequest } from "@/lib/db";
 
 export async function GET(request: Request) {
-  const learner = getLearner(getActiveLearnerIdFromRequest(request));
+  const learner = await getLearner(getActiveLearnerIdFromRequest(request));
   if (!learner) {
     return Response.json({ error: "No learner found" }, { status: 404 });
   }
 
-  const vocab = getVocabulary(learner.id);
+  const vocab = await getVocabulary(learner.id);
   return Response.json(vocab);
 }
 
 export async function POST(req: Request) {
-  const learner = getLearner(getActiveLearnerIdFromRequest(req));
+  const learner = await getLearner(getActiveLearnerIdFromRequest(req));
   if (!learner) {
     return Response.json({ error: "No learner found" }, { status: 404 });
   }
@@ -22,9 +22,9 @@ export async function POST(req: Request) {
   }
 
   if (action === "mark_known") {
-    markVocabKnown(learner.id, word);
+    await markVocabKnown(learner.id, word);
   } else {
-    markVocabUnknown(learner.id, word);
+    await markVocabUnknown(learner.id, word);
   }
 
   return Response.json({ ok: true });

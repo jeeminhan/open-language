@@ -7,6 +7,6 @@ export async function POST(request: Request) {
     return Response.json({ error: "sessionId required" }, { status: 400 });
   }
 
-  const session = endSession(sessionId);
+  const session = await endSession(sessionId);
   return Response.json({ session });
 }

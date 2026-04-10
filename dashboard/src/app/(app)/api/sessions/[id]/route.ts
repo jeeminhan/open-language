@@ -5,11 +5,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const session = getSession(id);
+  const session = await getSession(id);
   if (!session) {
     return Response.json({ error: "Session not found" }, { status: 404 });
   }
 
-  const turns = getSessionTurns(id);
+  const turns = await getSessionTurns(id);
   return Response.json({ session, turns });
 }

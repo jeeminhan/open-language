@@ -1,17 +1,17 @@
 import { getLearner, getInterests, upsertInterest, deleteInterest, getActiveLearnerIdFromRequest } from "@/lib/db";
 
 export async function GET(request: Request) {
-  const learner = getLearner(getActiveLearnerIdFromRequest(request));
+  const learner = await getLearner(getActiveLearnerIdFromRequest(request));
   if (!learner) {
     return Response.json({ error: "No learner found" }, { status: 404 });
   }
 
-  const interests = getInterests(learner.id);
+  const interests = await getInterests(learner.id);
   return Response.json(interests);
 }
 
 export async function POST(request: Request) {
-  const learner = getLearner(getActiveLearnerIdFromRequest(request));
+  const learner = await getLearner(getActiveLearnerIdFromRequest(request));
   if (!learner) {
     return Response.json({ error: "No learner found" }, { status: 404 });
   }
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   if (Array.isArray(body.interests)) {
     for (const i of body.interests) {
       if (i.name && i.category) {
-        upsertInterest(
+        await upsertInterest(
           learner.id,
           i.category,
           i.name,
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
   // Single add
   if (body.name && body.category) {
-    upsertInterest(
+    await upsertInterest(
       learner.id,
       body.category,
       body.name,
@@ -54,6 +54,6 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const { id } = await request.json();
   if (!id) return Response.json({ error: "id required" }, { status: 400 });
-  deleteInterest(id);
+  await deleteInterest(id);
   return Response.json({ ok: true });
 }

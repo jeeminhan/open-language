@@ -1,17 +1,15 @@
-import { getLearner, getErrors, getGrammar, isDbAvailable } from "@/lib/db";
-import LocalOnly from "@/components/LocalOnly";
+import { getLearner, getErrors, getGrammar } from "@/lib/db";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
 export default async function PronunciationPage() {
-  if (!isDbAvailable()) return <LocalOnly />;
   const cookieStore = await cookies();
   const learnerId = cookieStore.get("active_learner")?.value;
-  const learner = getLearner(learnerId);
+  const learner = await getLearner(learnerId);
   if (!learner) return <p style={{ color: "var(--text-dim)" }}>No data.</p>;
 
-  const allErrors = getErrors(learner.id);
+  const allErrors = await getErrors(learner.id);
   const pronErrors = allErrors.filter(
     (e) =>
       e.category.toLowerCase().includes("pronunciation") ||
@@ -24,7 +22,7 @@ export default async function PronunciationPage() {
       e.description.toLowerCase().includes("consonant")
   );
 
-  const grammarAll = getGrammar(learner.id);
+  const grammarAll = await getGrammar(learner.id);
   const phonGrammar = grammarAll.filter(
     (g) =>
       g.pattern.toLowerCase().includes("pronunciation") ||

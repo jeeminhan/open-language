@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     mode,
   } = body;
 
-  const learner = getLearner(getActiveLearnerIdFromRequest(request));
+  const learner = await getLearner(getActiveLearnerIdFromRequest(request));
   if (!learner) {
     return Response.json({ error: "No learner found" }, { status: 404 });
   }
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   // Create session if needed
   let activeSessionId = sessionId;
   if (!activeSessionId) {
-    const session = createSession(learner.id, mode || "voice-web");
+    const session = await createSession(learner.id, mode || "voice-web");
     activeSessionId = session.id;
   }
 
@@ -104,7 +104,7 @@ Return [] if perfect. No markdown.` }] }],
 
   // Save turn
   const hasErrors = errors.length > 0;
-  createTurn(
+  await createTurn(
     activeSessionId,
     turnNumber || 1,
     userMessage || "",
@@ -116,12 +116,12 @@ Return [] if perfect. No markdown.` }] }],
   );
 
   // Update session counters
-  updateSessionCounters(activeSessionId, hasErrors ? errors.length : 0, 0, 0);
+  await updateSessionCounters(activeSessionId, hasErrors ? errors.length : 0, 0, 0);
 
   // Upsert error patterns
   for (const err of errors) {
     if (err.observed && err.expected) {
-      upsertErrorPattern(
+      await upsertErrorPattern(
         learner.id,
         err.type || "unknown",
         `${err.observed} → ${err.expected}`,
@@ -131,7 +131,7 @@ Return [] if perfect. No markdown.` }] }],
         false
       );
       if (err.type) {
-        upsertGrammar(
+        await upsertGrammar(
           learner.id,
           err.type,
           null,
@@ -149,7 +149,7 @@ Return [] if perfect. No markdown.` }] }],
       .split(/\s+/)
       .filter((w: string) => w.length >= 2);
     for (const word of words) {
-      upsertVocabulary(learner.id, word.toLowerCase(), "target");
+      await upsertVocabulary(learner.id, word.toLowerCase(), "target");
     }
   }
 

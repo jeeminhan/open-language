@@ -92,7 +92,7 @@ export async function POST(req: Request) {
   const model = process.env.LLM_MODEL || "gemini-2.5-flash";
   if (!apiKey) return Response.json({ errors: [], tutorEval: null, unknownWords: [], errorClusters: [] });
 
-  const learner = getLearner(getActiveLearnerIdFromRequest(req));
+  const learner = await getLearner(getActiveLearnerIdFromRequest(req));
   const lang = learner?.target_language || "Korean";
   const native = learner?.native_language || "English";
 
@@ -341,7 +341,7 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
   if (learner) {
     for (const err of errors) {
       if (err.observed && err.expected) {
-        upsertErrorPattern(
+        await upsertErrorPattern(
           learner.id,
           err.type || "unknown",
           `${err.observed} → ${err.expected}`,
@@ -351,7 +351,7 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
           false
         );
         if (err.type) {
-          upsertGrammar(learner.id, err.type, null, false, err.source_message || err.observed);
+          await upsertGrammar(learner.id, err.type, null, false, err.source_message || err.observed);
         }
       }
     }
@@ -359,7 +359,7 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
     // Persist unknown vocab
     for (const w of unknownWords) {
       if (w.word) {
-        upsertVocabulary(learner.id, w.word, "unknown");
+        await upsertVocabulary(learner.id, w.word, "unknown");
       }
     }
 
@@ -367,7 +367,7 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
     const sid = null; // no session id in review context
     for (const ps of phrasingSuggestions) {
       if (ps.original && ps.suggested) {
-        createPhrasingSuggestion(
+        await createPhrasingSuggestion(
           learner.id, sid, ps.original, ps.suggested,
           ps.grammar_point || null, ps.explanation || null,
           ps.category || "grammar"
@@ -378,7 +378,7 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
     // Persist expressions
     for (const expr of expressions) {
       if (expr.expression) {
-        upsertExpression(
+        await upsertExpression(
           learner.id, expr.expression, expr.type || "grammar_pattern",
           expr.meaning || null, expr.context || null,
           !!expr.learner_used
@@ -389,7 +389,7 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
     // Persist detected interests
     for (const interest of detectedInterests) {
       if (interest.name && interest.category && (interest.confidence ?? 0) >= 0.5) {
-        upsertInterest(
+        await upsertInterest(
           learner.id,
           interest.category,
           interest.name,

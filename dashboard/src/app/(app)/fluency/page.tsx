@@ -1,22 +1,20 @@
-import { getLearner, getSessions, getVocabulary, getSessionMetrics, getVocabGrowth, getGrammar, isDbAvailable } from "@/lib/db";
+import { getLearner, getSessions, getVocabulary, getSessionMetrics, getVocabGrowth, getGrammar } from "@/lib/db";
 import { ErrorRateChart, TurnsPerSessionChart, VocabGrowthChart, GrammarMasteryChart } from "@/components/Charts";
-import LocalOnly from "@/components/LocalOnly";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
 export default async function FluencyPage() {
-  if (!isDbAvailable()) return <LocalOnly />;
   const cookieStore = await cookies();
   const learnerId = cookieStore.get("active_learner")?.value;
-  const learner = getLearner(learnerId);
+  const learner = await getLearner(learnerId);
   if (!learner) return <p style={{ color: "var(--text-dim)" }}>No data.</p>;
 
-  const sessions = getSessions(learner.id, 100);
-  const vocab = getVocabulary(learner.id);
-  const sessionMetrics = getSessionMetrics(learner.id, 50);
-  const vocabGrowth = getVocabGrowth(learner.id);
-  const grammar = getGrammar(learner.id);
+  const sessions = await getSessions(learner.id, 100);
+  const vocab = await getVocabulary(learner.id);
+  const sessionMetrics = await getSessionMetrics(learner.id, 50);
+  const vocabGrowth = await getVocabGrowth(learner.id);
+  const grammar = await getGrammar(learner.id);
 
   const grammarTrends = grammar
     .filter((g) => g.correct_uses + g.incorrect_uses >= 2)

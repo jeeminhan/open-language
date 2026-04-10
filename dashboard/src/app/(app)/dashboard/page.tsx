@@ -1,14 +1,12 @@
-import { getLearner, getStats, getErrors, getSessions, computeEffectiveLevel, getSpacedRepetitionItems, getL1Patterns, getInterests, isDbAvailable } from "@/lib/db";
-import LocalOnly from "@/components/LocalOnly";
+import { getLearner, getStats, getErrors, getSessions, computeEffectiveLevel, getSpacedRepetitionItems, getL1Patterns, getInterests } from "@/lib/db";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  if (!isDbAvailable()) return <LocalOnly />;
   const cookieStore = await cookies();
   const learnerId = cookieStore.get("active_learner")?.value;
-  const learner = getLearner(learnerId);
+  const learner = await getLearner(learnerId);
   if (!learner) {
     return (
       <div className="card">
@@ -19,9 +17,19 @@ export default async function Home() {
     );
   }
 
-  const stats = getStats(learner.id);
-  const topErrors = getErrors(learner.id).slice(0, 5);
-  const recentSessions = getSessions(learner.id, 5);
+  const stats = await getStats(learner.id);
+  const topErrors = (await getErrors(learner.id)).slice(0, 5);
+  const recentSessions = await getSessions(learner.id, 5);
+  const eff = await computeEffectiveLevel(learner.id);
+  const practiceItems = await getSpacedRepetitionItems(learner.id, 5);
+  const l1Patterns = await getL1Patterns(learner.id);
+  const interests = await getInterests(learner.id);
+  const categoryIcons: Record<string, string> = {
+    books: "\u{1F4DA}", music: "\u{1F3B5}", tv_shows: "\u{1F4FA}", movies: "\u{1F3AC}",
+    anime: "\u{1F30A}", hobbies: "\u{2728}", sports: "\u{26BD}", food: "\u{1F372}",
+    travel: "\u{2708}\u{FE0F}", work: "\u{1F4BC}", culture: "\u{1F3AF}", games: "\u{1F3AE}",
+    technology: "\u{1F4BB}", people: "\u{1F465}", news: "\u{1F4F0}", other: "\u{1F4AD}",
+  };
 
   return (
     <div className="space-y-10">
@@ -113,13 +121,7 @@ export default async function Home() {
       </section>
 
       {/* ─── SECTION 3: Self-Learning System (river/blue) ─── */}
-      {(() => {
-        const eff = computeEffectiveLevel(learner.id);
-        const practiceItems = getSpacedRepetitionItems(learner.id, 5);
-        const l1Patterns = getL1Patterns(learner.id);
-
-        return (
-          <section>
+      <section>
             <SectionHeader color="var(--river)" icon={
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3C6.2 13.5 5 11.4 5 9a7 7 0 0 1 7-7z" />
@@ -242,22 +244,10 @@ export default async function Home() {
                 </div>
               </div>
             </div>
-          </section>
-        );
-      })()}
+      </section>
 
       {/* ─── SECTION 4: Your Profile (sage/green) ─── */}
-      {(() => {
-        const interests = getInterests(learner.id);
-        const categoryIcons: Record<string, string> = {
-          books: "\u{1F4DA}", music: "\u{1F3B5}", tv_shows: "\u{1F4FA}", movies: "\u{1F3AC}",
-          anime: "\u{1F30A}", hobbies: "\u{2728}", sports: "\u{26BD}", food: "\u{1F372}",
-          travel: "\u{2708}\u{FE0F}", work: "\u{1F4BC}", culture: "\u{1F3AF}", games: "\u{1F3AE}",
-          technology: "\u{1F4BB}", people: "\u{1F465}", news: "\u{1F4F0}", other: "\u{1F4AD}",
-        };
-
-        return (
-          <section>
+      <section>
             <SectionHeader color="var(--moss)" icon={
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -322,9 +312,7 @@ export default async function Home() {
                 </div>
               </div>
             )}
-          </section>
-        );
-      })()}
+      </section>
     </div>
   );
 }

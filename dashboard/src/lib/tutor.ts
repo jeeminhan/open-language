@@ -15,48 +15,47 @@ const SYSTEM_TEMPLATE = fs.readFileSync(
   "utf-8"
 );
 
-function buildSystemPrompt(learner: db.Learner, sessionId: string): string {
-  const activeErrors = db.getActiveErrors(learner.id);
+async function buildSystemPrompt(learner: db.Learner, sessionId: string): Promise<string> {
+  const [activeErrors, recentCorrections, weakGrammar, avoidance, effective, l1Patterns, practiceItems, interests] = await Promise.all([
+    db.getActiveErrors(learner.id),
+    db.getRecentCorrections(sessionId),
+    db.getWeakGrammar(learner.id),
+    db.getAvoidancePatterns(learner.id),
+    db.computeEffectiveLevel(learner.id),
+    db.getL1Patterns(learner.id),
+    db.getSpacedRepetitionItems(learner.id, 5),
+    db.getInterests(learner.id),
+  ]);
+
   const errorsText = activeErrors.length > 0
     ? activeErrors.map(e => `- ${e.description} (${e.category}, ${e.occurrence_count}x, ${e.status})`).join("\n")
     : "None yet.";
 
-  const recentCorrections = db.getRecentCorrections(sessionId);
   const correctionsText = recentCorrections.length > 0
     ? recentCorrections.map(c => `- Turn ${c.turn_number}: ${c.correction_type} — ${c.correction_reasoning || "N/A"}`).join("\n")
     : "None this session.";
 
-  const weakGrammar = db.getWeakGrammar(learner.id);
   const grammarText = weakGrammar.length > 0
     ? weakGrammar.map(g => `- ${g.pattern} (mastery: ${Math.round(g.mastery_score)}%)`).join("\n")
     : "No weak areas identified yet.";
 
-  const avoidance = db.getAvoidancePatterns(learner.id);
   const avoidanceText = (avoidance as Array<{description: string}>).length > 0
     ? (avoidance as Array<{description: string}>).map(a => `- ${a.description}`).join("\n")
     : "None identified yet.";
 
-  // Compute adaptive level from real performance data
-  const effective = db.computeEffectiveLevel(learner.id);
   const effectiveLevel = effective.confidence > 0.3 ? effective.level : (learner.proficiency_level || "A2");
   const levelNote = effective.confidence > 0.3
     ? `${effective.level} (computed: ${Math.round(effective.grammarMastery)}% grammar mastery, ${Math.round(effective.errorRate)}% error rate)`
     : `${learner.proficiency_level || "A2"} (registered — not enough data to adapt yet)`;
 
-  // L1 interference patterns
-  const l1Patterns = db.getL1Patterns(learner.id);
   const l1Text = l1Patterns.length > 0
     ? l1Patterns.slice(0, 5).map(p => `- ${p.description}: ${p.l1_source}`).join("\n")
     : "None identified yet.";
 
-  // Spaced repetition focus areas
-  const practiceItems = db.getSpacedRepetitionItems(learner.id, 5);
   const practiceText = practiceItems.length > 0
     ? practiceItems.map(p => `- ${p.description} (${p.category}, priority ${p.priority})`).join("\n")
     : "No specific focus areas yet.";
 
-  // Learner interests for personalized conversation
-  const interests = db.getInterests(learner.id);
   const interestsText = interests.length > 0
     ? interests.slice(0, 8).map(i => `- ${i.name} (${i.category}${i.details ? `: ${i.details}` : ""})`).join("\n")
     : "No interests detected yet — ask about their hobbies and preferences!";
@@ -114,7 +113,7 @@ export async function chat(
   history: Array<{ role: string; content: string }>,
   turnNumber: number
 ): Promise<ChatResult> {
-  const systemPrompt = buildSystemPrompt(learner, sessionId);
+  const systemPrompt = await buildSystemPrompt(learner, sessionId);
 
   const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
     { role: "system", content: systemPrompt },
@@ -139,16 +138,15 @@ export async function chat(
 
   const { response, analysis } = parseResponse(raw);
 
-  // Process analysis and update DB
   const correctionAction = (analysis?.correction_action as string) || "none";
   const corrected = ["recast", "correct_explicitly"].includes(correctionAction);
   let errorsCount = 0;
-  let correctionsCount = corrected ? 1 : 0;
+  const correctionsCount = corrected ? 1 : 0;
 
   if (analysis) {
     const errors = (analysis.errors as Array<Record<string, string>>) || [];
     for (const err of errors) {
-      db.upsertErrorPattern(
+      await db.upsertErrorPattern(
         learner.id,
         err.type || "unknown",
         err.pattern_description || err.type || "unknown",
@@ -158,27 +156,27 @@ export async function chat(
         corrected
       );
       if (err.type) {
-        db.upsertGrammar(learner.id, err.pattern_description || err.type, null, false, err.observed || userMessage);
+        await db.upsertGrammar(learner.id, err.pattern_description || err.type, null, false, err.observed || userMessage);
       }
       errorsCount++;
     }
 
     const grammarCorrect = (analysis.grammar_used_correctly as Array<Record<string, string>>) || [];
     for (const g of grammarCorrect) {
-      db.upsertGrammar(learner.id, g.pattern || "unknown", g.level || null, true, g.example || userMessage);
+      await db.upsertGrammar(learner.id, g.pattern || "unknown", g.level || null, true, g.example || userMessage);
     }
 
     const vocab = (analysis.vocabulary_used as string[]) || [];
     for (const word of vocab) {
       if (typeof word === "string" && word.trim()) {
-        db.upsertVocabulary(learner.id, word.trim().toLowerCase(), "target");
+        await db.upsertVocabulary(learner.id, word.trim().toLowerCase(), "target");
       }
     }
   }
 
-  db.updateSessionCounters(sessionId, errorsCount, correctionsCount, 0);
+  await db.updateSessionCounters(sessionId, errorsCount, correctionsCount, 0);
 
-  db.createTurn(
+  await db.createTurn(
     sessionId,
     turnNumber,
     userMessage,
@@ -193,8 +191,10 @@ export async function chat(
 }
 
 export async function suggestTopics(learner: db.Learner): Promise<string[]> {
-  const weakGrammar = db.getWeakGrammar(learner.id);
-  const activeErrors = db.getActiveErrors(learner.id, 5);
+  const [weakGrammar, activeErrors] = await Promise.all([
+    db.getWeakGrammar(learner.id),
+    db.getActiveErrors(learner.id, 5),
+  ]);
 
   if (weakGrammar.length === 0 && activeErrors.length === 0) {
     return ["Free conversation — talk about your day!", "Describe your favorite hobby", "Tell me about a recent trip"];

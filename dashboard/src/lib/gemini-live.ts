@@ -1,4 +1,4 @@
-const GEMINI_MODEL = "gemini-2.5-flash-native-audio-preview";
+const GEMINI_MODEL = "gemini-3.1-flash-live-preview";
 const GEMINI_WS_BASE =
   "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
 

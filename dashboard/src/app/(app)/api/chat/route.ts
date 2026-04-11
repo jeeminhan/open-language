@@ -1,5 +1,5 @@
 import { chat } from "@/lib/tutor";
-import { getLearner, getSession, createSession, getActiveLearnerIdFromRequest } from "@/lib/db";
+import { getLearner, createLearner, createSession, getActiveLearnerIdFromRequest, getAllLearners } from "@/lib/db";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -12,14 +12,14 @@ export async function POST(request: Request) {
   // Get learner — use provided ID or default to first learner
   let learner;
   if (learnerId) {
-    const db = await import("@/lib/db");
-    learner = (await db.getAllLearners()).find((l) => l.id === learnerId);
+    learner = (await getAllLearners()).find((l) => l.id === learnerId);
   }
   if (!learner) {
     learner = await getLearner(getActiveLearnerIdFromRequest(request));
   }
   if (!learner) {
-    return Response.json({ error: "No learner profile found" }, { status: 404 });
+    // Auto-create a default learner for first-time users
+    learner = await createLearner("Learner", "English", "Korean", "A2", "moderate");
   }
 
   // Get or create session

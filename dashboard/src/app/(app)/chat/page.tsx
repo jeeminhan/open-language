@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useVoiceChat } from "@/hooks/useVoiceChat";
+import { useJournalRecorder } from "@/hooks/useJournalRecorder";
 
 interface ErrorAnnotation {
   observed: string;
@@ -272,12 +273,12 @@ export default function ChatPage() {
   const voiceSessionIdRef = useRef<string | null>(null);
   const voiceTurnRef = useRef(0);
 
+  const journal = useJournalRecorder();
+
   const voice = useVoiceChat({
-    systemPrompt: chatMode === "journal" ? buildJournalPrompt(adaptive) : buildVoicePrompt(adaptive),
+    systemPrompt: buildVoicePrompt(adaptive),
     languageCode: getLanguageCode(adaptive?.targetLanguage),
-    greeting: chatMode === "journal"
-      ? "Say a single warm word to show you're listening. Just one word like '네' or 'hi' or equivalent in the target language. Nothing more."
-      : "Start the conversation. Greet the learner warmly and suggest a topic to talk about.",
+    greeting: "Start the conversation. Greet the learner warmly and suggest a topic to talk about.",
     onTurnComplete: (msgs) => {
       // Find the last complete user→assistant pair that hasn't been saved
       for (let i = msgs.length - 2; i >= 0; i--) {
@@ -1041,13 +1042,19 @@ export default function ChatPage() {
                       </p>
                     );
                   })}
-                  {voice.voiceActive && voice.interimTranscript && (
-                    <p
-                      className="text-sm leading-relaxed italic"
-                      style={{ color: "var(--text-dim)" }}
-                    >
-                      {voice.interimTranscript}
-                    </p>
+                  {journal.recording && (journal.segments.length > 0 || journal.interimText) && (
+                    <>
+                      {journal.segments.map((seg, i) => (
+                        <p key={`jseg-${i}`} className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
+                          {seg}
+                        </p>
+                      ))}
+                      {journal.interimText && (
+                        <p className="text-sm leading-relaxed italic" style={{ color: "var(--text-dim)" }}>
+                          {journal.interimText}
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -1171,10 +1178,42 @@ export default function ChatPage() {
         style={{ borderTop: "1px solid var(--border)" }}
       >
         <MicButton
-          active={voice.voiceActive}
-          connecting={voice.voiceConnecting}
-          speaking={voice.userSpeaking}
-          onClick={voice.toggleVoice}
+          active={chatMode === "journal" ? journal.recording : voice.voiceActive}
+          connecting={chatMode === "journal" ? false : voice.voiceConnecting}
+          speaking={chatMode === "journal" ? journal.recording : voice.userSpeaking}
+          onClick={chatMode === "journal"
+            ? async () => {
+                if (journal.recording) {
+                  const audio = await journal.stop();
+                  // Add all finalized segments as user messages
+                  if (journal.segments.length > 0) {
+                    const fullText = journal.segments.join(" ");
+                    setMessages((prev) => [...prev, { role: "user", content: fullText }]);
+                  }
+                  // Send audio for transcription to get a better version
+                  if (audio) {
+                    const res = await fetch("/api/transcribe", {
+                      method: "POST",
+                      body: (() => { const fd = new FormData(); fd.append("audio", new Blob([Uint8Array.from(atob(audio), c => c.charCodeAt(0))], { type: "audio/pcm;rate=16000" }), "journal.pcm"); return fd; })(),
+                    });
+                    const data = await res.json();
+                    if (data.text) {
+                      // Replace with better transcription
+                      setMessages((prev) => {
+                        const updated = [...prev];
+                        if (updated.length > 0 && updated[updated.length - 1].role === "user") {
+                          updated[updated.length - 1] = { ...updated[updated.length - 1], content: data.text };
+                        }
+                        return updated;
+                      });
+                    }
+                  }
+                } else {
+                  journal.start(getLanguageCode(adaptive?.targetLanguage));
+                }
+              }
+            : voice.toggleVoice
+          }
         />
 
         <input
@@ -1189,12 +1228,12 @@ export default function ChatPage() {
             }
           }}
           placeholder={
-            voice.voiceActive
-              ? chatMode === "journal"
-                ? "Type about your day, or just speak..."
-                : "Type while voice is active, or just speak..."
-              : chatMode === "journal"
-                ? "Write about your day..."
+            chatMode === "journal"
+              ? journal.recording
+                ? "Speaking... tap mic to stop"
+                : "Write about your day..."
+              : voice.voiceActive
+                ? "Type while voice is active, or just speak..."
                 : "Type in your target language..."
           }
           className="flex-1 rounded-xl px-4 py-3 text-sm outline-none"
@@ -1235,19 +1274,19 @@ export default function ChatPage() {
         )}
       </div>
 
-      {voice.voiceActive && (
+      {(voice.voiceActive || journal.recording) && (
         <div
           className="text-center text-xs py-1.5 mt-2 rounded-lg"
           style={{
             background: "var(--bg-card)",
             border: `1px solid ${chatMode === "journal" ? "rgba(196, 150, 74, 0.3)" : "var(--border)"}`,
-            color: voice.userSpeaking ? "var(--river)" : chatMode === "journal" ? "var(--gold)" : "var(--moss)",
+            color: chatMode === "journal" ? "var(--gold)" : voice.userSpeaking ? "var(--river)" : "var(--moss)",
           }}
         >
-          {voice.userSpeaking
-            ? "Listening..."
-            : chatMode === "journal"
-              ? "Journal mode — talk about your day"
+          {chatMode === "journal"
+            ? `Recording journal — ${Math.floor(journal.duration / 60)}:${(journal.duration % 60).toString().padStart(2, "0")}`
+            : voice.userSpeaking
+              ? "Listening..."
               : "Voice active — speak naturally"}
         </div>
       )}

@@ -44,6 +44,7 @@ export class AudioManager {
   scheduledPlaybackTime = 0;
   activePlaybackSources: Set<AudioBufferSourceNode> = new Set();
   private wasPlaying = false;
+  private playbackEndTimer: ReturnType<typeof setTimeout> | null = null;
 
   async startCapture(onData: (data: ArrayBuffer) => void) {
     this.onAudioData = onData;
@@ -135,19 +136,30 @@ export class AudioManager {
     const startTime = Math.max(now, this.scheduledPlaybackTime);
 
     source.connect(this.playbackContext.destination);
-    const wasPreviouslyEmpty = this.activePlaybackSources.size === 0;
     this.activePlaybackSources.add(source);
-    if (wasPreviouslyEmpty && !this.wasPlaying) {
+
+    // Signal playback started (only once per playback burst)
+    if (!this.wasPlaying) {
       this.wasPlaying = true;
+      if (this.playbackEndTimer) { clearTimeout(this.playbackEndTimer); this.playbackEndTimer = null; }
       this.onPlaybackStateChange?.(true);
     }
+    // Cancel any pending "ended" signal since new audio arrived
+    if (this.playbackEndTimer) { clearTimeout(this.playbackEndTimer); this.playbackEndTimer = null; }
 
     source.onended = () => {
       this.activePlaybackSources.delete(source);
       source.disconnect();
       if (this.activePlaybackSources.size === 0 && this.wasPlaying) {
-        this.wasPlaying = false;
-        this.onPlaybackStateChange?.(false);
+        // Debounce: wait 500ms before signaling playback ended
+        // (new chunks may arrive in the gap between sources)
+        if (this.playbackEndTimer) clearTimeout(this.playbackEndTimer);
+        this.playbackEndTimer = setTimeout(() => {
+          if (this.activePlaybackSources.size === 0 && this.wasPlaying) {
+            this.wasPlaying = false;
+            this.onPlaybackStateChange?.(false);
+          }
+        }, 500);
       }
     };
     source.start(startTime);
@@ -171,6 +183,7 @@ export class AudioManager {
   stopPlayback() {
     this.scheduledPlaybackTime = 0;
     this.wasPlaying = false;
+    if (this.playbackEndTimer) { clearTimeout(this.playbackEndTimer); this.playbackEndTimer = null; }
     for (const source of this.activePlaybackSources) {
       try {
         source.stop();

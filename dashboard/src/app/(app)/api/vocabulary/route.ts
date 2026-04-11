@@ -1,4 +1,4 @@
-import { getLearner, getVocabulary, markVocabUnknown, markVocabKnown, getActiveLearnerIdFromRequest } from "@/lib/db";
+import { getLearner, getVocabulary, markVocabUnknown, markVocabKnown, upsertVocabulary, getActiveLearnerIdFromRequest } from "@/lib/db";
 
 export async function GET(request: Request) {
   const learner = await getLearner(getActiveLearnerIdFromRequest(request));
@@ -23,6 +23,8 @@ export async function POST(req: Request) {
 
   if (action === "mark_known") {
     await markVocabKnown(learner.id, word);
+  } else if (action === "add") {
+    await upsertVocabulary(learner.id, word.trim().toLowerCase(), "target");
   } else {
     await markVocabUnknown(learner.id, word);
   }

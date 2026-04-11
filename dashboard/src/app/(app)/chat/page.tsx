@@ -252,6 +252,9 @@ export default function ChatPage() {
   const [adaptive, setAdaptive] = useState<AdaptiveData | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [wordPopup, setWordPopup] = useState<{ word: string; x: number; y: number } | null>(null);
+  const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch adaptive learning data on mount
   useEffect(() => {
@@ -308,10 +311,15 @@ export default function ChatPage() {
                 if (data.sessionId && !voiceSessionIdRef.current) {
                   voiceSessionIdRef.current = data.sessionId;
                 }
-                // Use server-side analysis errors for display
-                if (Array.isArray(data.errors) && data.errors.length > 0) {
-                  setVoiceErrors((prev) => ({ ...prev, [msgIdx]: data.errors }));
-                  analyzedVoiceRef.current.add(userMsg.id);
+                // Use server-side analysis errors for display (filter false positives)
+                if (Array.isArray(data.errors)) {
+                  const realErrors = data.errors.filter(
+                    (e: ErrorAnnotation) => e.observed?.trim().toLowerCase() !== e.expected?.trim().toLowerCase()
+                  );
+                  if (realErrors.length > 0) {
+                    setVoiceErrors((prev) => ({ ...prev, [msgIdx]: realErrors }));
+                    analyzedVoiceRef.current.add(userMsg.id);
+                  }
                 }
               })
               .catch(() => {});
@@ -349,7 +357,9 @@ export default function ChatPage() {
           }),
         });
         const data = await res.json();
-        const errors: ErrorAnnotation[] = data.errors || [];
+        const errors: ErrorAnnotation[] = (data.errors || []).filter(
+          (e: ErrorAnnotation) => e.observed?.trim().toLowerCase() !== e.expected?.trim().toLowerCase()
+        );
 
         if (errors.length > 0) {
           if (target === "text") {
@@ -425,6 +435,56 @@ export default function ChatPage() {
       errors: voiceErrors[i],
     })),
   ];
+
+  // Text selection → vocab popup
+  const handleTextSelect = useCallback(() => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+      setWordPopup(null);
+      return;
+    }
+    const word = sel.toString().trim();
+    if (word.length < 1 || word.length > 40 || word.includes("\n")) {
+      setWordPopup(null);
+      return;
+    }
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const container = chatContainerRef.current?.getBoundingClientRect();
+    if (!container) return;
+    setWordPopup({
+      word,
+      x: rect.left + rect.width / 2 - container.left,
+      y: rect.top - container.top - 8,
+    });
+  }, []);
+
+  const saveWordToVocab = useCallback(async (word: string) => {
+    setSavedWords((prev) => new Set(prev).add(word.toLowerCase()));
+    setWordPopup(null);
+    window.getSelection()?.removeAllRanges();
+    try {
+      await fetch("/api/vocabulary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ word: word.trim(), action: "add" }),
+      });
+    } catch { /* silent */ }
+  }, []);
+
+  // Dismiss popup on click outside
+  useEffect(() => {
+    const dismiss = (e: MouseEvent) => {
+      if (wordPopup && !(e.target as HTMLElement)?.closest?.("[data-vocab-popup]")) {
+        setTimeout(() => {
+          const sel = window.getSelection();
+          if (!sel || sel.isCollapsed) setWordPopup(null);
+        }, 10);
+      }
+    };
+    document.addEventListener("mousedown", dismiss);
+    return () => document.removeEventListener("mousedown", dismiss);
+  }, [wordPopup]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -567,7 +627,9 @@ export default function ChatPage() {
       .then((r) => r.json())
       .then((data) => {
         setReviewData({
-          errors: Array.isArray(data.errors) ? data.errors : [],
+          errors: Array.isArray(data.errors) ? data.errors.filter(
+            (e: ErrorAnnotation) => e.observed?.trim().toLowerCase() !== e.expected?.trim().toLowerCase()
+          ) : [],
           tutorEval: data.tutorEval || null,
           unknownWords: Array.isArray(data.unknownWords) ? data.unknownWords : [],
           errorClusters: Array.isArray(data.errorClusters) ? data.errorClusters : [],
@@ -665,7 +727,54 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col" style={{ height: "calc(100vh - 160px)" }}>
       {/* Chat messages */}
-      <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+      <div
+        ref={chatContainerRef}
+        className="flex-1 overflow-y-auto space-y-4 pb-4"
+        style={{ position: "relative" }}
+        onMouseUp={handleTextSelect}
+      >
+        {/* Vocab save popup */}
+        {wordPopup && (
+          <div
+            data-vocab-popup
+            style={{
+              position: "absolute",
+              left: Math.max(8, Math.min(wordPopup.x - 60, (chatContainerRef.current?.clientWidth || 300) - 128)),
+              top: wordPopup.y - 36,
+              zIndex: 50,
+              animation: "vocabPopIn 0.15s ease-out",
+            }}
+          >
+            {savedWords.has(wordPopup.word.toLowerCase()) ? (
+              <span
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium shadow-lg"
+                style={{ background: "var(--moss)", color: "white" }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Saved
+              </span>
+            ) : (
+              <button
+                onClick={() => saveWordToVocab(wordPopup.word)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium shadow-lg transition-all hover:scale-105"
+                style={{
+                  background: "var(--river)",
+                  color: "white",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Save &ldquo;{wordPopup.word}&rdquo;
+              </button>
+            )}
+          </div>
+        )}
+
         {allMessages.length === 0 &&
           !voice.voiceActive &&
           !voice.voiceConnecting && (
@@ -932,6 +1041,14 @@ export default function ChatPage() {
                       </p>
                     );
                   })}
+                  {voice.voiceActive && voice.interimTranscript && (
+                    <p
+                      className="text-sm leading-relaxed italic"
+                      style={{ color: "var(--text-dim)" }}
+                    >
+                      {voice.interimTranscript}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -1012,6 +1129,22 @@ export default function ChatPage() {
               )}
             </div>
           ))
+        )}
+
+        {/* Interim local transcript while user speaks */}
+        {voice.voiceActive && voice.interimTranscript && (
+          <div className="flex justify-end">
+            <div
+              className="max-w-[75%] rounded-2xl rounded-br-sm px-4 py-2.5 italic"
+              style={{
+                background: "rgba(98, 148, 184, 0.35)",
+                color: "rgba(255, 255, 255, 0.7)",
+                transition: "opacity 0.2s",
+              }}
+            >
+              {voice.interimTranscript}
+            </div>
+          </div>
         )}
 
         {loading && (
@@ -1118,6 +1251,13 @@ export default function ChatPage() {
               : "Voice active — speak naturally"}
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes vocabPopIn {
+          from { opacity: 0; transform: translateY(4px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
     </div>
   );
 }

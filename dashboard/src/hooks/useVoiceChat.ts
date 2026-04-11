@@ -36,6 +36,8 @@ export interface UseVoiceChatReturn {
   voiceConnecting: boolean;
   /** Whether the user is currently speaking */
   userSpeaking: boolean;
+  /** Local interim transcript (from Web Speech API) while user speaks */
+  interimTranscript: string;
   /** Start or stop voice session */
   toggleVoice: () => Promise<void>;
   /** Send a text message through the voice channel */
@@ -66,21 +68,69 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceConnecting, setVoiceConnecting] = useState(false);
   const [userSpeaking, setUserSpeaking] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState("");
 
   const audioManagerRef = useRef<AudioManager | null>(null);
   const clientRef = useRef<GeminiLiveClient | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const pendingRef = useRef<{ user: number | null; model: number | null }>({
     user: null,
     model: null,
   });
+
+  // Start local speech recognition for interim transcripts
+  const startLocalRecognition = useCallback(() => {
+    const SpeechRecognition = typeof window !== "undefined"
+      ? (window.SpeechRecognition || window.webkitSpeechRecognition)
+      : null;
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = languageCode || "en-US";
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (!event.results[i].isFinal) {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      setInterimTranscript(interim);
+    };
+
+    recognition.onerror = () => { /* silent — this is a best-effort feature */ };
+    recognition.onend = () => {
+      // Auto-restart if voice is still active
+      if (recognitionRef.current === recognition && clientRef.current?.isActive()) {
+        try { recognition.start(); } catch { /* already started */ }
+      }
+    };
+
+    try {
+      recognition.start();
+      recognitionRef.current = recognition;
+    } catch { /* silent */ }
+  }, [languageCode]);
+
+  const stopLocalRecognition = useCallback(() => {
+    if (recognitionRef.current) {
+      const r = recognitionRef.current;
+      recognitionRef.current = null;
+      try { r.stop(); } catch { /* silent */ }
+    }
+    setInterimTranscript("");
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       audioManagerRef.current?.destroy();
       clientRef.current?.disconnect();
+      stopLocalRecognition();
     };
-  }, []);
+  }, [stopLocalRecognition]);
 
   // Watchdog: keep capture context alive while voice is active
   useEffect(() => {
@@ -158,6 +208,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
       audioManagerRef.current = null;
       clientRef.current?.disconnect();
       clientRef.current = null;
+      stopLocalRecognition();
       setVoiceActive(false);
       setVoiceConnecting(false);
       setUserSpeaking(false);
@@ -183,7 +234,10 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         languageCode,
         onAudioResponse: (pcmData) => audioManager.playAudio(pcmData),
         onTranscript: (role, text) => {
-          if (role === "user") setUserSpeaking(false);
+          if (role === "user") {
+            setUserSpeaking(false);
+            setInterimTranscript(""); // Gemini transcript replaces local interim
+          }
           appendTranscript(role, text);
         },
         onInterrupted: () => audioManager.stopPlayback(),
@@ -226,6 +280,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             console.error("[Voice] capture failed:", err);
             onError?.(err instanceof Error ? err : new Error(String(err)));
           }
+          startLocalRecognition();
           if (greeting) {
             console.log("[Voice] sending greeting");
             client.sendText(greeting);
@@ -248,6 +303,8 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     greeting,
     appendTranscript,
     cleanupTranscript,
+    startLocalRecognition,
+    stopLocalRecognition,
     onTurnComplete,
     onError,
   ]);
@@ -268,12 +325,13 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     audioManagerRef.current = null;
     clientRef.current?.disconnect();
     clientRef.current = null;
+    stopLocalRecognition();
     setVoiceActive(false);
     setVoiceConnecting(false);
     setUserSpeaking(false);
     setMessages([]);
     pendingRef.current = { user: null, model: null };
-  }, []);
+  }, [stopLocalRecognition]);
 
   const appendMessage = useCallback(
     (role: "user" | "assistant", content: string) => {
@@ -287,6 +345,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     voiceActive,
     voiceConnecting,
     userSpeaking,
+    interimTranscript,
     toggleVoice,
     sendText,
     reset,

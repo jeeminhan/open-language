@@ -126,34 +126,32 @@ export class GeminiLiveClient {
 
   private sendSetup() {
     const msg = {
-      setup: {
+      config: {
         model: `models/${GEMINI_MODEL}`,
-        generationConfig: {
-          responseModalities: ["AUDIO"],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: "Kore" },
-            },
-            ...(this.config.languageCode ? { languageCode: this.config.languageCode } : {}),
+        response_modalities: ["AUDIO"],
+        speech_config: {
+          voice_config: {
+            prebuilt_voice_config: { voice_name: "Kore" },
           },
+          ...(this.config.languageCode ? { language_code: this.config.languageCode } : {}),
         },
-        systemInstruction: {
+        system_instruction: {
           parts: [{ text: this.config.systemPrompt }],
         },
-        realtimeInputConfig: {
-          automaticActivityDetection: {
+        realtime_input_config: {
+          automatic_activity_detection: {
             disabled: false,
-            startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
-            endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
-            prefixPaddingMs: 300,
-            silenceDurationMs: 700,
+            start_of_speech_sensitivity: "START_SENSITIVITY_HIGH",
+            end_of_speech_sensitivity: "END_SENSITIVITY_LOW",
+            prefix_padding_ms: 300,
+            silence_duration_ms: 700,
           },
         },
-        inputAudioTranscription: {},
-        outputAudioTranscription: {},
+        input_audio_transcription: {},
+        output_audio_transcription: {},
       },
     };
-    console.log("[Gemini WS] sending setup for model:", msg.setup.model);
+    console.log("[Gemini WS] sending setup for model:", msg.config.model);
     this.ws?.send(JSON.stringify(msg));
   }
 

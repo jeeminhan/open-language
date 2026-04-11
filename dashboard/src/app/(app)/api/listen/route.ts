@@ -28,13 +28,15 @@ export async function POST(request: Request) {
                 },
               },
               {
-                text: `Transcribe this audio. There may be multiple speakers — identify and label them consistently (e.g. "Speaker 1", "Speaker 2"). Different voices should get different labels. Keep the same label for the same voice across the conversation.
+                text: `Transcribe this audio EXACTLY as spoken in its ORIGINAL language. Do NOT translate. If they speak Korean, write Korean. If they speak Japanese, write Japanese. NEVER convert to English.
+
+There may be multiple speakers — identify and label them consistently (e.g. "Speaker 1", "Speaker 2"). Different voices should get different labels. Keep the same label for the same voice across the conversation.
 
 Return ONLY valid JSON in this exact format, no markdown, no code fences:
-{"utterances": [{"speaker": "Speaker 1", "text": "what they said"}, {"speaker": "Speaker 2", "text": "what they said"}]}
+{"utterances": [{"speaker": "Speaker 1", "text": "원래 언어로 그대로"}, {"speaker": "Speaker 2", "text": "번역하지 마세요"}]}
 
 If no speech is detected, return: {"utterances": []}
-Preserve the original language — do not translate.`,
+CRITICAL: Output the EXACT words spoken. Do NOT translate to English.`,
               },
             ],
           },

@@ -27,9 +27,8 @@ export default function LearnerSwitcher() {
           const valid = data.find((l: Learner) => l.id === stored);
           setActive(valid ? stored : data[0].id);
         } else {
-          // No learners — auto-open the create form
-          setOpen(true);
-          setShowCreate(true);
+          // No learners — redirect to onboarding
+          window.location.href = "/onboarding";
         }
       })
       .catch(() => {});

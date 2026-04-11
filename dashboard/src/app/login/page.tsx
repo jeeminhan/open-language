@@ -38,9 +38,16 @@ export default function LoginPage() {
       if (error) {
         setError(error.message);
       } else {
-        // Redirect to the page they were trying to visit, or /chat
         const params = new URLSearchParams(window.location.search);
-        window.location.href = params.get("next") || "/chat";
+        const next = params.get("next");
+        if (next) {
+          window.location.href = next;
+        } else {
+          // Check if user has any learner profiles
+          const res = await fetch("/api/learners");
+          const learners = await res.json();
+          window.location.href = Array.isArray(learners) && learners.length > 0 ? "/chat" : "/onboarding";
+        }
       }
     }
 

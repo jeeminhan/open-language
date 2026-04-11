@@ -1,7 +1,9 @@
 import { getLearner, getInterests, upsertInterest, deleteInterest, getActiveLearnerIdFromRequest } from "@/lib/db";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function GET(request: Request) {
-  const learner = await getLearner(getActiveLearnerIdFromRequest(request));
+  const userId = await getAuthUserId();
+  const learner = await getLearner(getActiveLearnerIdFromRequest(request), userId ?? undefined);
   if (!learner) {
     return Response.json({ error: "No learner found" }, { status: 404 });
   }
@@ -11,7 +13,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const learner = await getLearner(getActiveLearnerIdFromRequest(request));
+  const userId2 = await getAuthUserId();
+  const learner = await getLearner(getActiveLearnerIdFromRequest(request), userId2 ?? undefined);
   if (!learner) {
     return Response.json({ error: "No learner found" }, { status: 404 });
   }

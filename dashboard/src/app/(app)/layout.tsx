@@ -1,5 +1,6 @@
 import Nav from "@/components/Nav";
 import LearnerSwitcher from "@/components/LearnerSwitcher";
+import SignOutButton from "@/components/SignOutButton";
 
 export default function AppLayout({
   children,
@@ -17,7 +18,10 @@ export default function AppLayout({
             open-language
           </a>
         </h1>
-        <LearnerSwitcher />
+        <div className="flex items-center gap-3">
+          <LearnerSwitcher />
+          <SignOutButton />
+        </div>
       </header>
       <Nav />
       <main>{children}</main>

@@ -12,6 +12,7 @@ function now(): string {
 
 export interface Learner {
   id: string;
+  user_id?: string;
   name: string;
   native_language: string;
   target_language: string;
@@ -159,17 +160,24 @@ export function getActiveLearnerIdFromRequest(request: Request): string | undefi
 
 // ── Queries ──────────────────────────────────────────────
 
-export async function getLearner(id?: string): Promise<Learner | undefined> {
+export async function getLearner(id?: string, userId?: string): Promise<Learner | undefined> {
   if (id) {
-    const { data } = await supabase.from("learners").select("*").eq("id", id).maybeSingle();
+    let q = supabase.from("learners").select("*").eq("id", id);
+    if (userId) q = q.eq("user_id", userId);
+    const { data } = await q.maybeSingle();
     if (data) return data as Learner;
   }
-  const { data } = await supabase.from("learners").select("*").limit(1).maybeSingle();
+  // Fallback: get first learner for this user (or any if no userId)
+  let q = supabase.from("learners").select("*");
+  if (userId) q = q.eq("user_id", userId);
+  const { data } = await q.limit(1).maybeSingle();
   return (data ?? undefined) as Learner | undefined;
 }
 
-export async function getAllLearners(): Promise<Learner[]> {
-  const { data } = await supabase.from("learners").select("*").order("created_at");
+export async function getAllLearners(userId?: string): Promise<Learner[]> {
+  let q = supabase.from("learners").select("*");
+  if (userId) q = q.eq("user_id", userId);
+  const { data } = await q.order("created_at");
   return (data ?? []) as Learner[];
 }
 
@@ -275,12 +283,18 @@ export async function createLearner(
   nativeLang: string,
   targetLang: string,
   level: string,
-  tolerance: string
+  tolerance: string,
+  userId?: string
 ): Promise<Learner> {
   const id = uid();
+  const row: Record<string, unknown> = {
+    id, name, native_language: nativeLang, target_language: targetLang,
+    proficiency_level: level, correction_tolerance: tolerance,
+  };
+  if (userId) row.user_id = userId;
   const { data } = await supabase
     .from("learners")
-    .insert({ id, name, native_language: nativeLang, target_language: targetLang, proficiency_level: level, correction_tolerance: tolerance })
+    .insert(row)
     .select()
     .single();
   return data as Learner;

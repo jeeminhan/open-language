@@ -1,7 +1,9 @@
 import { getLearner, getStats, getErrors, getSessions, getActiveLearnerIdFromRequest } from "@/lib/db";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function GET(request: Request) {
-  const learner = await getLearner(getActiveLearnerIdFromRequest(request));
+  const userId = await getAuthUserId();
+  const learner = await getLearner(getActiveLearnerIdFromRequest(request), userId ?? undefined);
   if (!learner) {
     return Response.json({ error: "No learner found" }, { status: 404 });
   }

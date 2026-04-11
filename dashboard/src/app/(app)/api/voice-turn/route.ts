@@ -8,6 +8,7 @@ import {
   upsertVocabulary,
   getActiveLearnerIdFromRequest,
 } from "@/lib/db";
+import { getAuthUserId } from "@/lib/auth";
 
 function parseJsonResponse(raw: string): unknown {
   const cleaned = raw.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
@@ -41,7 +42,8 @@ export async function POST(request: Request) {
     mode,
   } = body;
 
-  const learner = await getLearner(getActiveLearnerIdFromRequest(request));
+  const userId = await getAuthUserId();
+  const learner = await getLearner(getActiveLearnerIdFromRequest(request), userId ?? undefined);
   if (!learner) {
     return Response.json({ error: "No learner found" }, { status: 404 });
   }

@@ -1,4 +1,5 @@
 import { getLearner, getInterests, getWeakGrammar, getActiveErrors, getCachedTopics, cacheTopics, getActiveLearnerIdFromRequest } from "@/lib/db";
+import { getAuthUserId } from "@/lib/auth";
 
 const GOOGLE_SEARCH_URL = "https://www.googleapis.com/customsearch/v1";
 
@@ -53,7 +54,8 @@ async function geminiWebLookup(query: string): Promise<{ snippet: string; url: s
 }
 
 export async function GET(request: Request) {
-  const learner = await getLearner(getActiveLearnerIdFromRequest(request));
+  const userId = await getAuthUserId();
+  const learner = await getLearner(getActiveLearnerIdFromRequest(request), userId ?? undefined);
   if (!learner) {
     return Response.json({ error: "No learner found" }, { status: 404 });
   }

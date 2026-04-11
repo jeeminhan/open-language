@@ -1,4 +1,5 @@
 import { getLearner, upsertErrorPattern, upsertGrammar, upsertVocabulary, upsertExpression, createPhrasingSuggestion, upsertInterest, getActiveLearnerIdFromRequest } from "@/lib/db";
+import { getAuthUserId } from "@/lib/auth";
 
 interface ReviewError {
   observed: string;
@@ -92,7 +93,8 @@ export async function POST(req: Request) {
   const model = process.env.LLM_MODEL || "gemini-2.5-flash";
   if (!apiKey) return Response.json({ errors: [], tutorEval: null, unknownWords: [], errorClusters: [] });
 
-  const learner = await getLearner(getActiveLearnerIdFromRequest(req));
+  const userId = await getAuthUserId();
+  const learner = await getLearner(getActiveLearnerIdFromRequest(req), userId ?? undefined);
   const lang = learner?.target_language || "Korean";
   const native = learner?.native_language || "English";
 

@@ -1,7 +1,9 @@
 import { chat } from "@/lib/tutor";
 import { getLearner, createLearner, createSession, getActiveLearnerIdFromRequest, getAllLearners } from "@/lib/db";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function POST(request: Request) {
+  const userId = await getAuthUserId();
   const body = await request.json();
   const { message, sessionId, history, turnNumber, learnerId } = body;
 
@@ -9,17 +11,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "message required" }, { status: 400 });
   }
 
-  // Get learner — use provided ID or default to first learner
+  // Get learner — use provided ID or default to first learner for this user
   let learner;
   if (learnerId) {
-    learner = (await getAllLearners()).find((l) => l.id === learnerId);
+    learner = (await getAllLearners(userId ?? undefined)).find((l) => l.id === learnerId);
   }
   if (!learner) {
-    learner = await getLearner(getActiveLearnerIdFromRequest(request));
+    learner = await getLearner(getActiveLearnerIdFromRequest(request), userId ?? undefined);
   }
   if (!learner) {
-    // Auto-create a default learner for first-time users
-    learner = await createLearner("Learner", "English", "Korean", "A2", "moderate");
+    learner = await createLearner("Learner", "English", "Korean", "A2", "moderate", userId ?? undefined);
   }
 
   // Get or create session

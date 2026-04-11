@@ -1,11 +1,14 @@
 import { getAllLearners, createLearner } from "@/lib/db";
+import { getAuthUserId } from "@/lib/auth";
 
 export async function GET() {
-  const learners = await getAllLearners();
+  const userId = await getAuthUserId();
+  const learners = await getAllLearners(userId ?? undefined);
   return Response.json(learners);
 }
 
 export async function POST(request: Request) {
+  const userId = await getAuthUserId();
   const body = await request.json();
   const { name, nativeLanguage, targetLanguage, level, tolerance } = body;
 
@@ -18,7 +21,8 @@ export async function POST(request: Request) {
     nativeLanguage,
     targetLanguage,
     level || "A2",
-    tolerance || "moderate"
+    tolerance || "moderate",
+    userId ?? undefined
   );
 
   return Response.json(learner);

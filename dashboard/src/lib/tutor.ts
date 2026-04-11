@@ -11,7 +11,7 @@ const client = new OpenAI({
 const MODEL = process.env.LLM_MODEL || "gemini-2.5-flash";
 
 const SYSTEM_TEMPLATE = fs.readFileSync(
-  path.resolve(process.cwd(), process.env.PROMPT_PATH || "../prompts/system.txt"),
+  path.resolve(process.cwd(), process.env.PROMPT_PATH || "prompts/system.txt"),
   "utf-8"
 );
 

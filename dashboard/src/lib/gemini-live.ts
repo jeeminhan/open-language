@@ -98,10 +98,10 @@ export class GeminiLiveClient {
     if (!this.ws || !this.setupComplete) return;
     this.ws.send(
       JSON.stringify({
-        realtime_input: {
+        realtimeInput: {
           audio: {
             data: arrayBufferToBase64(pcmData),
-            mime_type: "audio/pcm",
+            mimeType: "audio/pcm;rate=16000",
           },
         },
       })
@@ -112,9 +112,8 @@ export class GeminiLiveClient {
     if (!this.ws || !this.setupComplete) return;
     this.ws.send(
       JSON.stringify({
-        client_content: {
-          turns: [{ role: "user", parts: [{ text }] }],
-          turn_complete: true,
+        realtimeInput: {
+          text,
         },
       })
     );

@@ -156,7 +156,12 @@ export async function chat(
         corrected
       );
       if (err.type) {
-        await db.upsertGrammar(learner.id, err.pattern_description || err.type, null, false, err.observed || userMessage);
+        const grammarPattern = err.pattern_description && err.pattern_description !== err.type
+          ? err.pattern_description
+          : err.observed && err.expected
+            ? `${err.observed} → ${err.expected}`
+            : err.type;
+        await db.upsertGrammar(learner.id, grammarPattern, null, false, err.observed || userMessage);
       }
       errorsCount++;
     }

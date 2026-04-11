@@ -228,6 +228,20 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
       const audioManager = new AudioManager();
       audioManagerRef.current = audioManager;
 
+      // Pause local STT when AI is playing audio to avoid echo pickup
+      audioManager.onPlaybackStateChange = (playing) => {
+        if (playing) {
+          // Stop local recognition while AI speaks
+          if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch { /* silent */ }
+          }
+          setInterimTranscript("");
+        } else {
+          // Resume local recognition when AI finishes speaking
+          startLocalRecognition();
+        }
+      };
+
       const client = new GeminiLiveClient({
         token,
         systemPrompt,

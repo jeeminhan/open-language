@@ -1,4 +1,5 @@
 import { getLearner, getGrammar } from "@/lib/db";
+import { getAuthUserId } from "@/lib/auth";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
@@ -11,16 +12,27 @@ function masteryColor(score: number, total: number): string {
 }
 
 function masteryBg(score: number, total: number): string {
-  if (total < 3) return "var(--border)";
-  if (score >= 80) return "rgba(107, 154, 91, 0.15)";
-  if (score >= 40) return "rgba(196, 185, 154, 0.15)";
-  return "rgba(196, 94, 74, 0.15)";
+  if (total < 3) return "var(--surface-2, var(--border))";
+  if (score >= 80) return "rgba(107, 154, 91, 0.12)";
+  if (score >= 40) return "rgba(196, 185, 154, 0.12)";
+  return "rgba(196, 94, 74, 0.12)";
+}
+
+function parseExamples(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((s: unknown) => typeof s === "string" && s.trim()) : [];
+  } catch {
+    return [];
+  }
 }
 
 export default async function GrammarPage() {
   const cookieStore = await cookies();
   const learnerId = cookieStore.get("active_learner")?.value;
-  const learner = await getLearner(learnerId);
+  const userId = await getAuthUserId();
+  const learner = await getLearner(learnerId, userId ?? undefined);
   if (!learner) return <p style={{ color: "var(--text-dim)" }}>No data.</p>;
 
   const grammar = await getGrammar(learner.id);
@@ -63,36 +75,69 @@ export default async function GrammarPage() {
           </div>
 
           {/* Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {grammar.map((g) => {
               const total = g.correct_uses + g.incorrect_uses;
+              const examples = parseExamples(g.example_sentences);
               return (
                 <div
                   key={g.id}
-                  className="rounded-lg p-3 border transition-all hover:scale-[1.02]"
+                  className="rounded-lg p-4 border transition-all hover:scale-[1.02]"
                   style={{
                     background: masteryBg(g.mastery_score, total),
                     borderColor: "var(--border)",
                   }}
                 >
-                  <div className="text-sm font-medium mb-1">{g.pattern}</div>
+                  <div className="flex justify-between items-start mb-2">
+                    <div
+                      className="text-base font-semibold"
+                      style={{ fontFamily: "var(--font-target, inherit)" }}
+                    >
+                      {g.pattern}
+                    </div>
+                    <div
+                      className={`font-mono text-sm font-bold shrink-0 ml-2 ${masteryColor(g.mastery_score, total)}`}
+                    >
+                      {total < 3 ? "—" : `${Math.round(g.mastery_score)}%`}
+                    </div>
+                  </div>
+
                   {g.level && (
                     <div className="text-xs mb-2" style={{ color: "var(--text-dim)" }}>
                       {g.level}
                     </div>
                   )}
-                  <div className="flex justify-between items-end">
-                    <div className="text-xs" style={{ color: "var(--text-dim)" }}>
-                      <span style={{ color: "var(--moss)" }}>{g.correct_uses}</span>
-                      {" / "}
-                      <span style={{ color: "var(--ember)" }}>{g.incorrect_uses}</span>
-                    </div>
-                    <div
-                      className={`font-mono text-sm font-bold ${masteryColor(g.mastery_score, total)}`}
-                    >
-                      {total < 3 ? "—" : `${Math.round(g.mastery_score)}%`}
-                    </div>
+
+                  <div className="flex gap-3 items-center text-xs mb-2" style={{ color: "var(--text-dim)" }}>
+                    <span>
+                      <span style={{ color: "var(--moss)" }}>{g.correct_uses}</span> correct
+                    </span>
+                    <span>
+                      <span style={{ color: "var(--ember)" }}>{g.incorrect_uses}</span> incorrect
+                    </span>
                   </div>
+
+                  {examples.length > 0 && (
+                    <div
+                      className="mt-2 pt-2 space-y-1"
+                      style={{ borderTop: "1px solid var(--border)" }}
+                    >
+                      {examples.slice(0, 3).map((ex, i) => (
+                        <div
+                          key={i}
+                          className="text-xs leading-relaxed"
+                          style={{ color: "var(--text-dim)" }}
+                        >
+                          &ldquo;{ex}&rdquo;
+                        </div>
+                      ))}
+                      {examples.length > 3 && (
+                        <div className="text-xs" style={{ color: "var(--text-dim)", opacity: 0.6 }}>
+                          +{examples.length - 3} more
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -39,9 +39,11 @@ export class AudioManager {
   workletNode: AudioWorkletNode | null = null;
   sourceNode: MediaStreamAudioSourceNode | null = null;
   onAudioData: ((data: ArrayBuffer) => void) | null = null;
+  onPlaybackStateChange: ((playing: boolean) => void) | null = null;
   nativeSampleRate = 48000;
   scheduledPlaybackTime = 0;
   activePlaybackSources: Set<AudioBufferSourceNode> = new Set();
+  private wasPlaying = false;
 
   async startCapture(onData: (data: ArrayBuffer) => void) {
     this.onAudioData = onData;
@@ -133,11 +135,20 @@ export class AudioManager {
     const startTime = Math.max(now, this.scheduledPlaybackTime);
 
     source.connect(this.playbackContext.destination);
+    const wasPreviouslyEmpty = this.activePlaybackSources.size === 0;
     this.activePlaybackSources.add(source);
+    if (wasPreviouslyEmpty && !this.wasPlaying) {
+      this.wasPlaying = true;
+      this.onPlaybackStateChange?.(true);
+    }
 
     source.onended = () => {
       this.activePlaybackSources.delete(source);
       source.disconnect();
+      if (this.activePlaybackSources.size === 0 && this.wasPlaying) {
+        this.wasPlaying = false;
+        this.onPlaybackStateChange?.(false);
+      }
     };
     source.start(startTime);
     this.scheduledPlaybackTime = startTime + buffer.duration;
@@ -159,6 +170,7 @@ export class AudioManager {
 
   stopPlayback() {
     this.scheduledPlaybackTime = 0;
+    this.wasPlaying = false;
     for (const source of this.activePlaybackSources) {
       try {
         source.stop();

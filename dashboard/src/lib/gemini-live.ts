@@ -98,10 +98,10 @@ export class GeminiLiveClient {
     if (!this.ws || !this.setupComplete) return;
     this.ws.send(
       JSON.stringify({
-        realtimeInput: {
+        realtime_input: {
           audio: {
             data: arrayBufferToBase64(pcmData),
-            mimeType: "audio/pcm",
+            mime_type: "audio/pcm",
           },
         },
       })
@@ -112,9 +112,9 @@ export class GeminiLiveClient {
     if (!this.ws || !this.setupComplete) return;
     this.ws.send(
       JSON.stringify({
-        clientContent: {
+        client_content: {
           turns: [{ role: "user", parts: [{ text }] }],
-          turnComplete: true,
+          turn_complete: true,
         },
       })
     );
@@ -126,32 +126,34 @@ export class GeminiLiveClient {
 
   private sendSetup() {
     const msg = {
-      config: {
+      setup: {
         model: `models/${GEMINI_MODEL}`,
-        response_modalities: ["AUDIO"],
-        speech_config: {
-          voice_config: {
-            prebuilt_voice_config: { voice_name: "Kore" },
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: "Kore" },
+            },
+            ...(this.config.languageCode ? { languageCode: this.config.languageCode } : {}),
           },
-          ...(this.config.languageCode ? { language_code: this.config.languageCode } : {}),
         },
-        system_instruction: {
+        systemInstruction: {
           parts: [{ text: this.config.systemPrompt }],
         },
-        realtime_input_config: {
-          automatic_activity_detection: {
+        realtimeInputConfig: {
+          automaticActivityDetection: {
             disabled: false,
-            start_of_speech_sensitivity: "START_SENSITIVITY_HIGH",
-            end_of_speech_sensitivity: "END_SENSITIVITY_LOW",
-            prefix_padding_ms: 300,
-            silence_duration_ms: 700,
+            startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
+            endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
+            prefixPaddingMs: 300,
+            silenceDurationMs: 700,
           },
         },
-        input_audio_transcription: {},
-        output_audio_transcription: {},
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
       },
     };
-    console.log("[Gemini WS] sending setup for model:", msg.config.model);
+    console.log("[Gemini WS] sending setup for model:", msg.setup.model);
     this.ws?.send(JSON.stringify(msg));
   }
 

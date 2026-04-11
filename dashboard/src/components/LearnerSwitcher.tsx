@@ -26,6 +26,10 @@ export default function LearnerSwitcher() {
           const stored = localStorage.getItem("active_learner");
           const valid = data.find((l: Learner) => l.id === stored);
           setActive(valid ? stored : data[0].id);
+        } else {
+          // No learners — auto-open the create form
+          setOpen(true);
+          setShowCreate(true);
         }
       })
       .catch(() => {});
@@ -51,8 +55,6 @@ export default function LearnerSwitcher() {
 
   const current = learners.find((l) => l.id === active);
 
-  if (learners.length === 0) return null;
-
   return (
     <div ref={ref} className="relative">
       <button
@@ -66,9 +68,9 @@ export default function LearnerSwitcher() {
       >
         <span
           className="w-2 h-2 rounded-full"
-          style={{ background: "var(--moss)" }}
+          style={{ background: learners.length > 0 ? "var(--moss)" : "var(--ember)" }}
         />
-        {current?.name ?? "Select Learner"}
+        {current?.name ?? "Create Learner"}
         <span style={{ color: "var(--text-dim)", fontSize: "10px" }}>
           {current ? `${current.target_language} ${current.proficiency_level}` : ""}
         </span>

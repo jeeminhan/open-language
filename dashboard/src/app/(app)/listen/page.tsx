@@ -5,8 +5,9 @@ import { getLanguageCode } from "@/lib/languages";
 
 interface Utterance {
   id: string;
-  speaker: string;
+  speaker: "A" | "B";
   text: string;
+  mine: boolean;
 }
 
 interface LearnerInfo {
@@ -17,28 +18,34 @@ interface LearnerInfo {
 let idCounter = 0;
 function nextId() { return `u_${Date.now()}_${++idCounter}`; }
 
+// Pause threshold (ms) above which we assume speaker switched
+const SPEAKER_SWITCH_MS = 1500;
+
 export default function ListenPage() {
   const [listening, setListening] = useState(false);
-  const [processing, setProcessing] = useState(false);
   const [utterances, setUtterances] = useState<Utterance[]>([]);
   const [liveText, setLiveText] = useState("");
-  const [mySpeaker, setMySpeaker] = useState<string | null>(null);
-  const [speakers, setSpeakers] = useState<string[]>([]);
-  const [picking, setPicking] = useState(false);
+  const [chooseMode, setChooseMode] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
   const [learner, setLearner] = useState<LearnerInfo>({});
   const [useTargetLang, setUseTargetLang] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [supported, setSupported] = useState(true);
 
   useEffect(() => {
     fetch("/api/learner")
       .then((r) => r.json())
-      .then((d) => {
-        if (d && typeof d === "object") setLearner(d);
-      })
+      .then((d) => { if (d && typeof d === "object") setLearner(d); })
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const SR = typeof window !== "undefined"
+      ? (window.SpeechRecognition || window.webkitSpeechRecognition)
+      : null;
+    if (!SR) setSupported(false);
   }, []);
 
   const activeLanguage = useTargetLang
@@ -46,26 +53,32 @@ export default function ListenPage() {
     : learner.native_language || "English";
   const sttLang = getLanguageCode(activeLanguage) || "en-US";
 
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const workletRef = useRef<AudioWorkletNode | null>(null);
-  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const chunksRef = useRef<Int16Array[]>([]);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastFinalAtRef = useRef<number>(0);
+  const currentSpeakerRef = useRef<"A" | "B">("A");
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [utterances]);
+  }, [utterances, liveText]);
 
-  const startLocalSTT = useCallback(() => {
+  const startListening = useCallback(() => {
     const SR = typeof window !== "undefined"
       ? (window.SpeechRecognition || window.webkitSpeechRecognition)
       : null;
-    if (!SR) return;
+    if (!SR) { setErrorMsg("Speech recognition not supported in this browser. Try Chrome on desktop or Safari on iOS."); return; }
+
+    setUtterances([]);
+    setLiveText("");
+    setAnalysis(null);
+    setChooseMode(false);
+    setDuration(0);
+    setErrorMsg(null);
+    lastFinalAtRef.current = 0;
+    currentSpeakerRef.current = "A";
 
     const recognition = new SR();
     recognition.continuous = true;
@@ -75,151 +88,76 @@ export default function ListenPage() {
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        interim += event.results[i][0].transcript;
+        const result = event.results[i];
+        const transcript = result[0].transcript.trim();
+        if (result.isFinal) {
+          if (!transcript) continue;
+          const now = Date.now();
+          const gap = lastFinalAtRef.current ? now - lastFinalAtRef.current : 0;
+          if (lastFinalAtRef.current && gap > SPEAKER_SWITCH_MS) {
+            currentSpeakerRef.current = currentSpeakerRef.current === "A" ? "B" : "A";
+          }
+          lastFinalAtRef.current = now;
+          const speaker = currentSpeakerRef.current;
+          setUtterances((prev) => [...prev, { id: nextId(), speaker, text: transcript, mine: false }]);
+        } else {
+          interim += transcript + " ";
+        }
       }
-      setLiveText(interim);
+      setLiveText(interim.trim());
     };
-    recognition.onerror = () => {};
+
+    recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
+      if (e.error === "no-speech" || e.error === "aborted") return;
+      setErrorMsg(`Recognition error: ${e.error}`);
+    };
+
     recognition.onend = () => {
+      // Auto-restart while listening flag is still on
       if (recognitionRef.current === recognition) {
         try { recognition.start(); } catch { /* */ }
       }
     };
-    try { recognition.start(); recognitionRef.current = recognition; } catch { /* */ }
+
+    try {
+      recognition.start();
+      recognitionRef.current = recognition;
+      setListening(true);
+      timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Failed to start recognition.");
+    }
   }, [sttLang]);
 
-  const stopLocalSTT = useCallback(() => {
-    if (recognitionRef.current) {
-      const r = recognitionRef.current;
-      recognitionRef.current = null;
-      try { r.stop(); } catch { /* */ }
-    }
+  const stopListening = useCallback(() => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    const r = recognitionRef.current;
+    recognitionRef.current = null;
+    if (r) { try { r.stop(); } catch { /* */ } }
+    setListening(false);
     setLiveText("");
+    setChooseMode(true);
   }, []);
 
-  const startListening = useCallback(async () => {
-    try {
-      const ctx = new AudioContext({ sampleRate: 16000 });
-      audioContextRef.current = ctx;
+  const toggleMine = useCallback((id: string) => {
+    setUtterances((prev) => prev.map((u) => u.id === id ? { ...u, mine: !u.mine } : u));
+  }, []);
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true, autoGainControl: true },
-      });
-      mediaStreamRef.current = stream;
+  const selectAllSpeaker = useCallback((speaker: "A" | "B") => {
+    setUtterances((prev) => prev.map((u) => ({ ...u, mine: u.speaker === speaker })));
+  }, []);
 
-      await ctx.audioWorklet.addModule("/capture.worklet.js");
-      const worklet = new AudioWorkletNode(ctx, "audio-capture-processor");
-      workletRef.current = worklet;
-
-      worklet.port.onmessage = (event: MessageEvent) => {
-        if (event.data.type !== "audio") return;
-        const float32: Float32Array = event.data.data;
-        const int16 = new Int16Array(float32.length);
-        for (let i = 0; i < float32.length; i++) {
-          int16[i] = Math.max(-1, Math.min(1, float32[i])) * 0x7fff;
-        }
-        chunksRef.current.push(int16);
-      };
-
-      const source = ctx.createMediaStreamSource(stream);
-      sourceRef.current = source;
-      source.connect(worklet);
-
-      chunksRef.current = [];
-      setListening(true);
-      setUtterances([]);
-      setSpeakers([]);
-      setMySpeaker(null);
-      setAnalysis(null);
-      setPicking(false);
-      setDuration(0);
-
-      timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
-      startLocalSTT();
-    } catch (err) {
-      console.error("Failed to start listening:", err);
-    }
-  }, [startLocalSTT]);
-
-  const stopListening = useCallback(async () => {
-    // Stop timer
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-
-    // Stop audio capture
-    if (workletRef.current) { workletRef.current.port.close(); workletRef.current.disconnect(); workletRef.current = null; }
-    if (sourceRef.current) { sourceRef.current.disconnect(); sourceRef.current = null; }
-    if (mediaStreamRef.current) { mediaStreamRef.current.getTracks().forEach((t) => t.stop()); mediaStreamRef.current = null; }
-    if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
-
-    stopLocalSTT();
-    setListening(false);
-
-    // Merge all chunks and send to API
-    const chunks = chunksRef.current;
-    if (chunks.length === 0) return;
-    chunksRef.current = [];
-
-    const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
-    const merged = new Int16Array(totalLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-      merged.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    const bytes = new Uint8Array(merged.buffer);
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    const base64 = btoa(binary);
-
-    setProcessing(true);
-    setErrorMsg(null);
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 95000);
-      const res = await fetch("/api/listen", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audio: base64, language: activeLanguage }),
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorMsg(data.error || `Transcription failed (${res.status})`);
-      } else if (data.utterances && Array.isArray(data.utterances) && data.utterances.length > 0) {
-        const parsed: Utterance[] = data.utterances.map((u: { speaker: string; text: string }) => ({
-          id: nextId(),
-          speaker: u.speaker,
-          text: u.text,
-        }));
-        setUtterances(parsed);
-        const uniqueSpeakers = [...new Set(data.utterances.map((u: { speaker: string }) => u.speaker))];
-        setSpeakers(uniqueSpeakers as string[]);
-        if (uniqueSpeakers.length > 0) setPicking(true);
-      } else {
-        setErrorMsg("No speech detected in the recording.");
-      }
-    } catch (err) {
-      const e = err as Error;
-      setErrorMsg(e.name === "AbortError" ? "Transcription timed out. Try a shorter clip." : "Failed to transcribe.");
-    }
-    setProcessing(false);
-  }, [stopLocalSTT, activeLanguage]);
-
-  const analyzeMySpeeech = useCallback(async () => {
-    if (!mySpeaker) return;
+  const analyzeMine = useCallback(async () => {
+    const myTexts = utterances.filter((u) => u.mine).map((u) => u.text);
+    if (myTexts.length === 0) { setErrorMsg("Tap your lines first, then analyze."); return; }
     setAnalyzing(true);
-    const myUtterances = utterances.filter((u) => u.speaker === mySpeaker).map((u) => u.text);
-    if (myUtterances.length === 0) { setAnalyzing(false); return; }
-
+    setErrorMsg(null);
     try {
       const res = await fetch("/api/listen/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texts: myUtterances }),
+        body: JSON.stringify({ texts: myTexts }),
       });
       const data = await res.json();
       setAnalysis(data.analysis || "No analysis available.");
@@ -227,13 +165,7 @@ export default function ListenPage() {
       setAnalysis("Failed to analyze.");
     }
     setAnalyzing(false);
-  }, [mySpeaker, utterances]);
-
-  const speakerColor = (speaker: string) => {
-    if (mySpeaker === speaker) return "var(--gold)";
-    const idx = speakers.indexOf(speaker);
-    return idx === 0 ? "var(--river)" : idx === 1 ? "var(--moss)" : "var(--ember)";
-  };
+  }, [utterances]);
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
@@ -241,20 +173,28 @@ export default function ListenPage() {
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
 
+  const speakerColor = (speaker: "A" | "B") => speaker === "A" ? "var(--river)" : "var(--moss)";
+  const mineCount = utterances.filter((u) => u.mine).length;
+
   return (
     <div className="max-w-2xl mx-auto">
       <h2 className="text-lg font-bold mb-1" style={{ color: "var(--river)" }}>
         Passive Listening
       </h2>
       <p className="text-sm mb-6" style={{ color: "var(--text-dim)" }}>
-        Have a conversation with someone. I&apos;ll listen and transcribe everything at the end.
-        Then choose which voice is yours for feedback.
+        I&apos;ll transcribe live in your browser (free, no upload). After, tap your lines and I&apos;ll give feedback.
       </p>
 
+      {!supported && (
+        <div className="rounded-lg p-3 mb-4 text-sm border" style={{ background: "var(--bg-card)", borderColor: "var(--ember)", color: "var(--ember)" }}>
+          Your browser doesn&apos;t support live speech recognition. Use Chrome (desktop) or Safari (iOS).
+        </div>
+      )}
+
       {/* Language toggle */}
-      {learner.target_language && learner.native_language && !listening && !processing && (
-        <div className="flex gap-2 mb-4 text-xs">
-          <span style={{ color: "var(--text-dim)" }}>Expecting:</span>
+      {learner.target_language && learner.native_language && !listening && utterances.length === 0 && (
+        <div className="flex gap-2 mb-4 text-xs items-center">
+          <span style={{ color: "var(--text-dim)" }}>Language:</span>
           <button
             onClick={() => setUseTargetLang(true)}
             className="px-2.5 py-1 rounded-md transition-all"
@@ -281,134 +221,113 @@ export default function ListenPage() {
       )}
 
       {/* Controls */}
-      <div className="flex gap-3 items-center mb-6">
-        {!listening && !processing ? (
+      <div className="flex gap-3 items-center mb-4 flex-wrap">
+        {!listening ? (
           <button
             onClick={startListening}
+            disabled={!supported}
             className="px-5 py-2.5 rounded-lg text-sm font-medium transition-all hover:scale-105"
-            style={{ background: "var(--moss)", color: "white" }}
+            style={{ background: supported ? "var(--moss)" : "var(--border)", color: "white" }}
           >
-            Start Listening
+            {utterances.length > 0 ? "Restart" : "Start Listening"}
           </button>
-        ) : listening ? (
+        ) : (
           <button
             onClick={stopListening}
             className="px-5 py-2.5 rounded-lg text-sm font-medium transition-all hover:scale-105"
             style={{ background: "var(--ember)", color: "white" }}
           >
-            Stop &amp; Transcribe
+            Stop
           </button>
-        ) : null}
+        )}
 
         {listening && (
           <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-dim)" }}>
-            <span
-              className="w-2.5 h-2.5 rounded-full"
-              style={{ background: "var(--ember)", animation: "pulse 1.5s ease-in-out infinite" }}
-            />
-            Recording
-            <span className="font-mono" style={{ color: "var(--text)" }}>
-              {formatTime(duration)}
-            </span>
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: "var(--ember)", animation: "pulse 1.5s ease-in-out infinite" }} />
+            Recording <span className="font-mono" style={{ color: "var(--text)" }}>{formatTime(duration)}</span>
           </div>
         )}
 
-        {processing && (
-          <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-dim)" }}>
-            <span
-              className="w-4 h-4 rounded-full border-2 border-t-transparent"
-              style={{ borderColor: "var(--river)", borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }}
-            />
-            Transcribing {formatTime(duration)} of audio... (this can take up to a minute)
-          </div>
+        {!listening && utterances.length > 0 && (
+          <button
+            onClick={() => setChooseMode((v) => !v)}
+            className="px-3 py-2 rounded-lg text-sm font-medium border transition-all"
+            style={{
+              background: chooseMode ? "var(--gold)" : "transparent",
+              borderColor: "var(--gold)",
+              color: chooseMode ? "var(--bg)" : "var(--gold)",
+            }}
+          >
+            {chooseMode ? "Done choosing" : "Choose my lines"}
+          </button>
         )}
       </div>
 
-      {errorMsg && (
+      {/* Choose mode helpers */}
+      {chooseMode && utterances.length > 0 && (
         <div
-          className="rounded-lg p-3 mb-4 text-sm border"
-          style={{ background: "var(--bg-card)", borderColor: "var(--ember)", color: "var(--ember)" }}
+          className="rounded-lg p-3 mb-4 border text-xs"
+          style={{ background: "var(--bg-card)", borderColor: "var(--gold)" }}
         >
-          {errorMsg}
-        </div>
-      )}
-
-      {/* Live text while recording */}
-      {listening && liveText && (
-        <div
-          className="rounded-lg p-3 mb-4 border"
-          style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
-        >
-          <p className="text-xs mb-1 font-medium" style={{ color: "var(--text-dim)" }}>
-            Live preview
-          </p>
-          <p className="text-sm italic" style={{ color: "var(--text)", opacity: 0.7 }}>
-            {liveText}
-          </p>
-        </div>
-      )}
-
-      {/* Speaker picker */}
-      {picking && !mySpeaker && speakers.length > 0 && (
-        <div
-          className="rounded-lg p-4 mb-6 border"
-          style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
-        >
-          <p className="text-sm font-medium mb-3" style={{ color: "var(--text)" }}>
-            Which speaker are you?
+          <p className="mb-2" style={{ color: "var(--text)" }}>
+            Tap any line to mark it as yours. <span style={{ color: "var(--gold)" }}>{mineCount}</span> selected.
           </p>
           <div className="flex gap-2 flex-wrap">
-            {speakers.map((s) => (
-              <button
-                key={s}
-                onClick={() => { setMySpeaker(s); setPicking(false); }}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-all hover:scale-105 border"
-                style={{
-                  background: "var(--bg-hover)",
-                  borderColor: speakerColor(s),
-                  color: speakerColor(s),
-                }}
-              >
-                {s}
-              </button>
-            ))}
+            <button
+              onClick={() => selectAllSpeaker("A")}
+              className="px-2.5 py-1 rounded border"
+              style={{ borderColor: "var(--river)", color: "var(--river)" }}
+            >
+              All Speaker A
+            </button>
+            <button
+              onClick={() => selectAllSpeaker("B")}
+              className="px-2.5 py-1 rounded border"
+              style={{ borderColor: "var(--moss)", color: "var(--moss)" }}
+            >
+              All Speaker B
+            </button>
+            <button
+              onClick={() => setUtterances((prev) => prev.map((u) => ({ ...u, mine: false })))}
+              className="px-2.5 py-1 rounded border"
+              style={{ borderColor: "var(--border)", color: "var(--text-dim)" }}
+            >
+              Clear
+            </button>
           </div>
         </div>
       )}
 
-      {/* Analysis button */}
-      {mySpeaker && !analysis && (
-        <div className="mb-6">
+      {/* Analyze button */}
+      {!listening && utterances.length > 0 && !chooseMode && (
+        <div className="mb-4 flex items-center gap-3 flex-wrap">
           <button
-            onClick={analyzeMySpeeech}
-            disabled={analyzing}
-            className="px-5 py-2.5 rounded-lg text-sm font-medium transition-all hover:scale-105"
-            style={{
-              background: analyzing ? "var(--border)" : "var(--gold)",
-              color: analyzing ? "var(--text-dim)" : "var(--bg)",
-            }}
+            onClick={analyzeMine}
+            disabled={analyzing || mineCount === 0}
+            className="px-5 py-2.5 rounded-lg text-sm font-medium transition-all hover:scale-105 disabled:opacity-50"
+            style={{ background: "var(--gold)", color: "var(--bg)" }}
           >
-            {analyzing ? "Analyzing..." : "Analyze My Speech"}
+            {analyzing ? "Analyzing..." : `Analyze My Speech (${mineCount})`}
           </button>
-          <span className="text-xs ml-3" style={{ color: "var(--text-dim)" }}>
-            Speaking as {mySpeaker}
-          </span>
+          {mineCount === 0 && (
+            <span className="text-xs" style={{ color: "var(--text-dim)" }}>
+              Choose your lines first
+            </span>
+          )}
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="rounded-lg p-3 mb-4 text-sm border" style={{ background: "var(--bg-card)", borderColor: "var(--ember)", color: "var(--ember)" }}>
+          {errorMsg}
         </div>
       )}
 
       {/* Analysis result */}
       {analysis && (
-        <div
-          className="rounded-lg p-4 mb-6 border"
-          style={{ background: "var(--bg-card)", borderColor: "var(--gold)", borderWidth: "1px" }}
-        >
-          <h3 className="text-sm font-bold mb-2" style={{ color: "var(--gold)" }}>
-            Analysis
-          </h3>
-          <div
-            className="text-sm leading-relaxed whitespace-pre-wrap"
-            style={{ color: "var(--text)" }}
-          >
+        <div className="rounded-lg p-4 mb-6 border" style={{ background: "var(--bg-card)", borderColor: "var(--gold)" }}>
+          <h3 className="text-sm font-bold mb-2" style={{ color: "var(--gold)" }}>Analysis</h3>
+          <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "var(--text)" }}>
             {analysis}
           </div>
         </div>
@@ -418,40 +337,63 @@ export default function ListenPage() {
       <div
         ref={scrollRef}
         className="space-y-2 overflow-y-auto"
-        style={{ maxHeight: "calc(100vh - 420px)" }}
+        style={{ maxHeight: "calc(100vh - 360px)" }}
       >
-        {utterances.length === 0 && !listening && !processing && (
+        {utterances.length === 0 && !listening && (
           <p className="text-sm" style={{ color: "var(--text-dim)" }}>
             No transcript yet. Start listening to begin.
           </p>
         )}
-        {utterances.map((u) => (
-          <div key={u.id} className="flex gap-3 items-start">
-            <span
-              className="text-xs font-mono font-bold shrink-0 mt-0.5 px-2 py-0.5 rounded"
+        {utterances.map((u) => {
+          const isMine = u.mine;
+          return (
+            <button
+              key={u.id}
+              onClick={() => chooseMode && toggleMine(u.id)}
+              disabled={!chooseMode}
+              className="w-full flex gap-3 items-start text-left rounded-lg p-2 transition-all"
               style={{
-                color: speakerColor(u.speaker),
-                background: "var(--bg-hover)",
-                minWidth: "80px",
-                textAlign: "center",
+                background: isMine ? "var(--bg-hover)" : "transparent",
+                border: `1px solid ${isMine ? "var(--gold)" : "transparent"}`,
+                cursor: chooseMode ? "pointer" : "default",
               }}
             >
-              {u.speaker === mySpeaker ? "You" : u.speaker}
+              <span
+                className="text-xs font-mono font-bold shrink-0 mt-0.5 px-2 py-0.5 rounded"
+                style={{
+                  color: isMine ? "var(--gold)" : speakerColor(u.speaker),
+                  background: "var(--bg-hover)",
+                  minWidth: "70px",
+                  textAlign: "center",
+                }}
+              >
+                {isMine ? "You" : `Speaker ${u.speaker}`}
+              </span>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
+                {u.text}
+              </p>
+            </button>
+          );
+        })}
+        {listening && liveText && (
+          <div className="flex gap-3 items-start opacity-60 p-2">
+            <span
+              className="text-xs font-mono font-bold shrink-0 mt-0.5 px-2 py-0.5 rounded"
+              style={{ color: "var(--text-dim)", background: "var(--bg-hover)", minWidth: "70px", textAlign: "center" }}
+            >
+              ...
             </span>
-            <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
-              {u.text}
+            <p className="text-sm leading-relaxed italic" style={{ color: "var(--text-dim)" }}>
+              {liveText}
             </p>
           </div>
-        ))}
+        )}
       </div>
 
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>

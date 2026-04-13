@@ -4,13 +4,34 @@ export async function POST(request: Request) {
   const userId = await getAuthUserId();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { audio } = await request.json();
+  const { audio, language } = await request.json();
   if (!audio) return Response.json({ error: "No audio provided" }, { status: 400 });
 
   const apiKey = process.env.LLM_API_KEY;
   if (!apiKey) return Response.json({ error: "LLM_API_KEY not configured" }, { status: 500 });
 
   const model = process.env.LLM_MODEL || "gemini-2.5-flash";
+
+  const langHint = language
+    ? `The speakers are expected to be speaking ${language}, but transcribe whatever language they actually speak.`
+    : "Detect the spoken language and transcribe in that language.";
+
+  const prompt = `You are a professional transcriber. Listen to this audio and produce a verbatim transcript.
+
+CRITICAL RULES:
+1. Transcribe EXACTLY what is said, word-for-word, in the SAME language as the audio.
+2. Do NOT translate. If the audio is English, output English. If Spanish, output Spanish. If Korean, output Korean.
+3. Do NOT guess or invent content. Only transcribe what you actually hear.
+4. If the audio is silent or unintelligible, return an empty list.
+
+${langHint}
+
+If there are multiple distinct voices, label them "Speaker 1", "Speaker 2", etc. Keep the same label for the same voice throughout. If you cannot reliably distinguish voices, use "Speaker 1" for everything.
+
+Return ONLY valid JSON in this exact shape (no markdown, no code fences):
+{"utterances": [{"speaker": "Speaker 1", "text": "..."}]}
+
+If no speech detected: {"utterances": []}`;
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -21,29 +42,12 @@ export async function POST(request: Request) {
         contents: [
           {
             parts: [
-              {
-                inlineData: {
-                  mimeType: "audio/pcm;rate=16000",
-                  data: audio,
-                },
-              },
-              {
-                text: `Transcribe this audio EXACTLY as spoken in its ORIGINAL language. Do NOT translate. If they speak Korean, write Korean. If they speak Japanese, write Japanese. NEVER convert to English.
-
-There may be multiple speakers — identify and label them consistently (e.g. "Speaker 1", "Speaker 2"). Different voices should get different labels. Keep the same label for the same voice across the conversation.
-
-Return ONLY valid JSON in this exact format, no markdown, no code fences:
-{"utterances": [{"speaker": "Speaker 1", "text": "원래 언어로 그대로"}, {"speaker": "Speaker 2", "text": "번역하지 마세요"}]}
-
-If no speech is detected, return: {"utterances": []}
-CRITICAL: Output the EXACT words spoken. Do NOT translate to English.`,
-              },
+              { inlineData: { mimeType: "audio/pcm;rate=16000", data: audio } },
+              { text: prompt },
             ],
           },
         ],
-        generationConfig: {
-          temperature: 0.1,
-        },
+        generationConfig: { temperature: 0 },
       }),
     }
   );
@@ -51,14 +55,13 @@ CRITICAL: Output the EXACT words spoken. Do NOT translate to English.`,
   if (!res.ok) {
     const err = await res.text();
     console.error("Gemini listen error:", err);
-    return Response.json({ utterances: [] });
+    return Response.json({ utterances: [], error: "Transcription failed" });
   }
 
   const data = await res.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
   try {
-    // Strip markdown code fences if present
     const cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
     const parsed = JSON.parse(cleaned);
     return Response.json(parsed);

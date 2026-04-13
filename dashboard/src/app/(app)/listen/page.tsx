@@ -1,11 +1,17 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { getLanguageCode } from "@/lib/languages";
 
 interface Utterance {
   id: string;
   speaker: string;
   text: string;
+}
+
+interface LearnerInfo {
+  target_language?: string;
+  native_language?: string;
 }
 
 let idCounter = 0;
@@ -22,6 +28,22 @@ export default function ListenPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
+  const [learner, setLearner] = useState<LearnerInfo>({});
+  const [useTargetLang, setUseTargetLang] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/learner")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && typeof d === "object") setLearner(d);
+      })
+      .catch(() => {});
+  }, []);
+
+  const activeLanguage = useTargetLang
+    ? learner.target_language || "Korean"
+    : learner.native_language || "English";
+  const sttLang = getLanguageCode(activeLanguage) || "en-US";
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -47,7 +69,7 @@ export default function ListenPage() {
     const recognition = new SR();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = "ko-KR"; // TODO: derive from learner profile
+    recognition.lang = sttLang;
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let interim = "";
@@ -63,7 +85,7 @@ export default function ListenPage() {
       }
     };
     try { recognition.start(); recognitionRef.current = recognition; } catch { /* */ }
-  }, []);
+  }, [sttLang]);
 
   const stopLocalSTT = useCallback(() => {
     if (recognitionRef.current) {
@@ -156,7 +178,7 @@ export default function ListenPage() {
       const res = await fetch("/api/listen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audio: base64 }),
+        body: JSON.stringify({ audio: base64, language: activeLanguage }),
       });
       const data = await res.json();
       if (data.utterances && Array.isArray(data.utterances)) {
@@ -174,7 +196,7 @@ export default function ListenPage() {
       /* silent */
     }
     setProcessing(false);
-  }, [stopLocalSTT]);
+  }, [stopLocalSTT, activeLanguage]);
 
   const analyzeMySpeeech = useCallback(async () => {
     if (!mySpeaker) return;
@@ -217,6 +239,35 @@ export default function ListenPage() {
         Have a conversation with someone. I&apos;ll listen and transcribe everything at the end.
         Then choose which voice is yours for feedback.
       </p>
+
+      {/* Language toggle */}
+      {learner.target_language && learner.native_language && !listening && !processing && (
+        <div className="flex gap-2 mb-4 text-xs">
+          <span style={{ color: "var(--text-dim)" }}>Expecting:</span>
+          <button
+            onClick={() => setUseTargetLang(true)}
+            className="px-2.5 py-1 rounded-md transition-all"
+            style={{
+              background: useTargetLang ? "var(--bg-hover)" : "transparent",
+              border: `1px solid ${useTargetLang ? "var(--river)" : "var(--border)"}`,
+              color: useTargetLang ? "var(--river)" : "var(--text-dim)",
+            }}
+          >
+            {learner.target_language}
+          </button>
+          <button
+            onClick={() => setUseTargetLang(false)}
+            className="px-2.5 py-1 rounded-md transition-all"
+            style={{
+              background: !useTargetLang ? "var(--bg-hover)" : "transparent",
+              border: `1px solid ${!useTargetLang ? "var(--river)" : "var(--border)"}`,
+              color: !useTargetLang ? "var(--river)" : "var(--text-dim)",
+            }}
+          >
+            {learner.native_language}
+          </button>
+        </div>
+      )}
 
       {/* Controls */}
       <div className="flex gap-3 items-center mb-6">

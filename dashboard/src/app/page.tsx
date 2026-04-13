@@ -119,11 +119,11 @@ export default function LandingPage() {
         </p>
       </section>
 
-      {/* ─── Three Modes ─── */}
+      {/* ─── Four Modes ─── */}
       <section className={styles.section}>
-        <SectionLabel color="river">Three Modes</SectionLabel>
+        <SectionLabel color="river">Four Modes</SectionLabel>
         <h2 className={styles.h2}>
-          Type, speak, or journal.{" "}
+          Chat, speak, journal, or just listen.{" "}
           <span className={styles.dim}>Your choice.</span>
         </h2>
 
@@ -131,36 +131,45 @@ export default function LandingPage() {
           <ModeCard
             color="var(--gold)"
             icon="&gt;_"
-            title="Text Mode"
-            desc="Type your responses. Great for focused grammar practice and studying on the go."
+            title="Chat"
+            desc="Type back and forth. Great for focused grammar practice and studying on the go."
             items={[
-              "Zero setup required",
-              "Slash commands for stats",
-              "Review corrections at your own pace",
+              "Zero setup",
+              "Highlight any word to save it",
+              "Review corrections at your pace",
             ]}
           />
           <ModeCard
             color="var(--river)"
             icon="«))"
-            title="Voice Mode"
-            desc="Speak and listen. Push-to-talk recording with real-time transcription and text-to-speech."
+            title="Voice"
+            desc="Speak and listen. Live Gemini voice with real-time transcription."
             items={[
-              "Whisper-powered speech recognition",
-              "macOS TTS for tutor responses",
-              "Silence detection auto-stops",
+              "Push-to-talk or hands-free",
+              "Auto-pauses while tutor speaks",
               "Type mid-session if needed",
             ]}
           />
           <ModeCard
             color="var(--gold)"
             icon="&#x1F4D6;"
-            title="Journal Mode"
-            desc="Speak or write freely with no interruptions. Corrections come only after you're done."
+            title="Journal"
+            desc="Write or talk freely with no interruptions. Corrections come after you're done."
             items={[
-              "No corrections while you write",
-              "Flowing diary-style layout",
+              "No mid-flow corrections",
               "Full error report when finished",
               "Builds fluency without anxiety",
+            ]}
+          />
+          <ModeCard
+            color="var(--moss)"
+            icon="&#x1F3A7;"
+            title="Listen"
+            desc="Passive learning. Record real conversations, tag speakers, get everything analyzed."
+            items={[
+              "Browser or HQ Gemini mode",
+              "Tap-to-tag speakers",
+              "Errors + grammar saved to your profile",
             ]}
           />
         </div>

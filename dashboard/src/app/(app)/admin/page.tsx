@@ -24,9 +24,20 @@ interface SessionRow {
   errors_detected: number;
 }
 
+interface UserGroup {
+  user_id: string;
+  learner_count: number;
+  learners: Learner[];
+  sessions: number;
+  turns: number;
+  first_joined: string;
+  languages: string[];
+}
+
 interface AdminData {
   summary: {
     totalLearners: number;
+    totalUsers: number;
     newLearners7d: number;
     totalSessions: number;
     turnsLast24h: number;
@@ -35,6 +46,7 @@ interface AdminData {
     totalErrors: number;
   };
   learners: Learner[];
+  users: UserGroup[];
   recentSessions: SessionRow[];
   topErrors: { category: string; count: number }[];
 }
@@ -87,7 +99,7 @@ export default function AdminPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Learners" value={s.totalLearners} sub={`+${s.newLearners7d} this week`} />
+        <StatCard label="Users" value={s.totalUsers} sub={`${s.totalLearners} learners, +${s.newLearners7d} wk`} />
         <StatCard label="Sessions" value={s.totalSessions} sub={`${s.turnsLast24h} turns (24h)`} />
         <StatCard label="Vocab Items" value={s.totalVocab} />
         <StatCard label="Errors Logged" value={s.totalErrors} sub={`${s.avgMastery} avg mastery`} />
@@ -121,43 +133,65 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Learners table */}
+      {/* Users grouped by UUID */}
       <div className="mb-6">
         <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text)" }}>
-          Learners ({data.learners.length})
+          Users ({data.users.length})
         </h3>
-        <div className="rounded-lg overflow-x-auto border" style={{ borderColor: "var(--border)" }}>
-          <table className="w-full text-sm" style={{ background: "var(--bg-card)" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                <Th>Name</Th>
-                <Th>Native → Target</Th>
-                <Th>Level</Th>
-                <Th>Sessions</Th>
-                <Th>Turns</Th>
-                <Th>Joined</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.learners.map((l) => (
-                <tr key={l.id} style={{ borderTop: "1px solid var(--border)" }}>
-                  <Td bold>{l.name}</Td>
-                  <Td>{l.native_language} → {l.target_language}</Td>
-                  <Td>{l.proficiency_level}</Td>
-                  <Td mono>{l.sessions}</Td>
-                  <Td mono>{l.turns}</Td>
-                  <Td dim>{formatDate(l.created_at)}</Td>
-                </tr>
-              ))}
-              {data.learners.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="p-4 text-center" style={{ color: "var(--text-dim)" }}>
-                    No learners yet
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="space-y-3">
+          {data.users.map((u) => (
+            <div
+              key={u.user_id}
+              className="rounded-lg border overflow-hidden"
+              style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}
+            >
+              <div
+                className="px-4 py-2.5 flex items-center justify-between flex-wrap gap-2"
+                style={{ borderBottom: "1px solid var(--border)" }}
+              >
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="font-mono text-xs" style={{ color: "var(--text)" }}>
+                    {u.user_id}
+                  </span>
+                  <span className="text-xs" style={{ color: "var(--text-dim)" }}>
+                    {u.learner_count} {u.learner_count === 1 ? "learner" : "learners"} · {u.languages.join(", ")}
+                  </span>
+                </div>
+                <div className="text-xs font-mono" style={{ color: "var(--text-dim)" }}>
+                  {u.sessions} sessions · {u.turns} turns · joined {formatDate(u.first_joined)}
+                </div>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    <Th>Name</Th>
+                    <Th>Native → Target</Th>
+                    <Th>Level</Th>
+                    <Th>Sessions</Th>
+                    <Th>Turns</Th>
+                    <Th>Joined</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {u.learners.map((l) => (
+                    <tr key={l.id} style={{ borderTop: "1px solid var(--border)" }}>
+                      <Td bold>{l.name}</Td>
+                      <Td>{l.native_language} → {l.target_language}</Td>
+                      <Td>{l.proficiency_level}</Td>
+                      <Td mono>{l.sessions}</Td>
+                      <Td mono>{l.turns}</Td>
+                      <Td dim>{formatDate(l.created_at)}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+          {data.users.length === 0 && (
+            <p className="p-4 text-sm text-center rounded-lg border" style={{ color: "var(--text-dim)", background: "var(--bg-card)", borderColor: "var(--border)" }}>
+              No users yet
+            </p>
+          )}
         </div>
       </div>
 

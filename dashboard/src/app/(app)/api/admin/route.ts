@@ -75,6 +75,51 @@ export async function GET() {
     turns: turnCountsByLearner[l.id] || 0,
   }));
 
+  // Group learners by user_id (UUID)
+  const usersMap: Record<string, {
+    user_id: string;
+    learner_count: number;
+    learners: typeof learners;
+    sessions: number;
+    turns: number;
+    first_joined: string;
+    languages: Set<string>;
+  }> = {};
+
+  for (const l of learners) {
+    const key = l.user_id || "(none)";
+    if (!usersMap[key]) {
+      usersMap[key] = {
+        user_id: key,
+        learner_count: 0,
+        learners: [],
+        sessions: 0,
+        turns: 0,
+        first_joined: l.created_at,
+        languages: new Set(),
+      };
+    }
+    const u = usersMap[key];
+    u.learner_count += 1;
+    u.learners.push(l);
+    u.sessions += l.sessions;
+    u.turns += l.turns;
+    u.languages.add(`${l.native_language}→${l.target_language}`);
+    if (new Date(l.created_at) < new Date(u.first_joined)) u.first_joined = l.created_at;
+  }
+
+  const users = Object.values(usersMap)
+    .map((u) => ({
+      user_id: u.user_id,
+      learner_count: u.learner_count,
+      learners: u.learners,
+      sessions: u.sessions,
+      turns: u.turns,
+      first_joined: u.first_joined,
+      languages: Array.from(u.languages),
+    }))
+    .sort((a, b) => new Date(b.first_joined).getTime() - new Date(a.first_joined).getTime());
+
   const avgMastery = grammarRes.data && grammarRes.data.length > 0
     ? grammarRes.data.reduce((sum: number, g: { mastery_score: number }) => sum + (g.mastery_score || 0), 0) / grammarRes.data.length
     : 0;
@@ -82,6 +127,7 @@ export async function GET() {
   return Response.json({
     summary: {
       totalLearners: learnersRes.count || 0,
+      totalUsers: users.length,
       newLearners7d: newLearnersRes.count || 0,
       totalSessions: sessionsRes.count || 0,
       turnsLast24h: turnsRes.count || 0,
@@ -90,6 +136,7 @@ export async function GET() {
       totalErrors: errorsRes.data?.length || 0,
     },
     learners,
+    users,
     recentSessions: recentSessionsRes.data || [],
     topErrors,
   });

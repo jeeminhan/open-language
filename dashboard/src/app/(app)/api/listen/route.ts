@@ -1,5 +1,7 @@
 import { getAuthUserId } from "@/lib/auth";
 
+export const maxDuration = 90;
+
 export async function POST(request: Request) {
   const userId = await getAuthUserId();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -33,29 +35,41 @@ Return ONLY valid JSON in this exact shape (no markdown, no code fences):
 
 If no speech detected: {"utterances": []}`;
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { inlineData: { mimeType: "audio/pcm;rate=16000", data: audio } },
-              { text: prompt },
-            ],
-          },
-        ],
-        generationConfig: { temperature: 0 },
-      }),
-    }
-  );
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000);
+
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { inlineData: { mimeType: "audio/pcm;rate=16000", data: audio } },
+                { text: prompt },
+              ],
+            },
+          ],
+          generationConfig: { temperature: 0 },
+        }),
+      }
+    );
+  } catch (err) {
+    clearTimeout(timeout);
+    console.error("Gemini listen fetch error:", err);
+    return Response.json({ utterances: [], error: "Transcription timed out. Try a shorter clip." }, { status: 504 });
+  }
+  clearTimeout(timeout);
 
   if (!res.ok) {
     const err = await res.text();
-    console.error("Gemini listen error:", err);
-    return Response.json({ utterances: [], error: "Transcription failed" });
+    console.error("Gemini listen error:", res.status, err);
+    return Response.json({ utterances: [], error: `Transcription failed (${res.status})` }, { status: 502 });
   }
 
   const data = await res.json();

@@ -30,6 +30,7 @@ export default function ListenPage() {
   const [duration, setDuration] = useState(0);
   const [learner, setLearner] = useState<LearnerInfo>({});
   const [useTargetLang, setUseTargetLang] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/learner")
@@ -174,14 +175,21 @@ export default function ListenPage() {
     const base64 = btoa(binary);
 
     setProcessing(true);
+    setErrorMsg(null);
     try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 95000);
       const res = await fetch("/api/listen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ audio: base64, language: activeLanguage }),
+        signal: controller.signal,
       });
+      clearTimeout(timer);
       const data = await res.json();
-      if (data.utterances && Array.isArray(data.utterances)) {
+      if (!res.ok) {
+        setErrorMsg(data.error || `Transcription failed (${res.status})`);
+      } else if (data.utterances && Array.isArray(data.utterances) && data.utterances.length > 0) {
         const parsed: Utterance[] = data.utterances.map((u: { speaker: string; text: string }) => ({
           id: nextId(),
           speaker: u.speaker,
@@ -191,9 +199,12 @@ export default function ListenPage() {
         const uniqueSpeakers = [...new Set(data.utterances.map((u: { speaker: string }) => u.speaker))];
         setSpeakers(uniqueSpeakers as string[]);
         if (uniqueSpeakers.length > 0) setPicking(true);
+      } else {
+        setErrorMsg("No speech detected in the recording.");
       }
-    } catch {
-      /* silent */
+    } catch (err) {
+      const e = err as Error;
+      setErrorMsg(e.name === "AbortError" ? "Transcription timed out. Try a shorter clip." : "Failed to transcribe.");
     }
     setProcessing(false);
   }, [stopLocalSTT, activeLanguage]);
@@ -308,10 +319,19 @@ export default function ListenPage() {
               className="w-4 h-4 rounded-full border-2 border-t-transparent"
               style={{ borderColor: "var(--river)", borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }}
             />
-            Transcribing {formatTime(duration)} of audio...
+            Transcribing {formatTime(duration)} of audio... (this can take up to a minute)
           </div>
         )}
       </div>
+
+      {errorMsg && (
+        <div
+          className="rounded-lg p-3 mb-4 text-sm border"
+          style={{ background: "var(--bg-card)", borderColor: "var(--ember)", color: "var(--ember)" }}
+        >
+          {errorMsg}
+        </div>
+      )}
 
       {/* Live text while recording */}
       {listening && liveText && (

@@ -155,13 +155,12 @@ export async function chat(
         err.observed || userMessage,
         corrected
       );
-      if (err.type) {
-        const grammarPattern = err.pattern_description && err.pattern_description !== err.type
-          ? err.pattern_description
-          : err.observed && err.expected
-            ? `${err.observed} → ${err.expected}`
-            : err.type;
-        await db.upsertGrammar(learner.id, grammarPattern, null, false, err.observed || userMessage);
+      // Only track in grammar inventory if we have a real pattern name from the AI.
+      // Category names like "word_choice" / "grammar" pollute the page — skip them.
+      const categoryWords = new Set(["word_choice", "grammar", "particle", "conjugation", "vocabulary", "syntax", "unknown"]);
+      const pd = err.pattern_description?.trim();
+      if (pd && !categoryWords.has(pd.toLowerCase()) && pd.toLowerCase() !== (err.type || "").toLowerCase()) {
+        await db.upsertGrammar(learner.id, pd, null, false, err.observed || userMessage);
       }
       errorsCount++;
     }

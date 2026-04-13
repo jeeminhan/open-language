@@ -70,7 +70,7 @@ Your natural conversational reply here. This is what the learner sees/hears.
       "expected": "what they should have said",
       "severity": "low/medium/high",
       "l1_source": "why this error likely happened",
-      "pattern_description": "the specific grammar construct involved, e.g. ~(으)면, ~는데, ~을/를, NOT the category name"
+      "pattern_description": "REQUIRED: the specific grammar construct involved, e.g. ~(으)면, ~는데, ~을/를, 은/는 vs 이/가. Must NOT be a category word like 'word_choice', 'grammar', or 'particle'. If no specific construct applies, omit this field entirely."
     }}
   ],
   "grammar_used_correctly": [

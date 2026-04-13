@@ -298,7 +298,7 @@ function MasteryBar({ score }: { score: number }) {
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
+function Th({ children }: { children?: React.ReactNode }) {
   return (
     <th className="text-left px-4 py-2.5 text-xs uppercase tracking-wider font-semibold" style={{ color: "var(--text-dim)" }}>
       {children}

@@ -726,7 +726,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col" style={{ height: "calc(100vh - 160px)" }}>
+    <div className="flex flex-col" style={{ height: "calc(100dvh - 180px)" }}>
       {/* Chat messages */}
       <div
         ref={chatContainerRef}
@@ -1174,7 +1174,7 @@ export default function ChatPage() {
 
       {/* Input area */}
       <div
-        className="flex gap-2 pt-4 items-center"
+        className="flex gap-1.5 sm:gap-2 pt-3 sm:pt-4 items-center"
         style={{ borderTop: "1px solid var(--border)" }}
       >
         <MicButton
@@ -1236,7 +1236,7 @@ export default function ChatPage() {
                 ? "Type while voice is active, or just speak..."
                 : "Type in your target language..."
           }
-          className="flex-1 rounded-xl px-4 py-3 text-sm outline-none"
+          className="flex-1 min-w-0 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none"
           style={{
             background: "var(--bg-card)",
             border: chatMode === "journal" ? "1px solid rgba(196, 150, 74, 0.3)" : "1px solid var(--border)",
@@ -1248,7 +1248,7 @@ export default function ChatPage() {
         <button
           onClick={() => sendMessage()}
           disabled={loading || !input.trim()}
-          className="px-5 py-3 rounded-xl text-sm font-medium transition-all"
+          className="px-3 sm:px-5 py-2.5 sm:py-3 rounded-xl text-sm font-medium transition-all shrink-0"
           style={{
             background: input.trim()
               ? chatMode === "journal" ? "var(--gold)" : "var(--river)"

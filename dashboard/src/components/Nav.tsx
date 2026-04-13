@@ -7,6 +7,7 @@ const links = [
   { href: "/dashboard", label: "Overview" },
   { href: "/chat", label: "Chat" },
   { href: "/listen", label: "Listen" },
+  { href: "/interests", label: "Interests" },
   { href: "/errors", label: "Errors" },
   { href: "/grammar", label: "Grammar" },
   { href: "/pronunciation", label: "Pronunciation" },
@@ -22,12 +23,12 @@ export default function Nav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex gap-1 mb-8">
+    <nav className="hidden sm:flex gap-1 mb-8 overflow-x-auto pb-2 scrollbar-hide">
       {links.map((link) => (
         <Link
           key={link.href}
           href={link.href}
-          className={pathname === link.href ? "active" : ""}
+          className={`whitespace-nowrap ${pathname === link.href ? "active" : ""}`}
         >
           {link.label}
         </Link>

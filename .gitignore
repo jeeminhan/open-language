@@ -11,3 +11,6 @@ exports/
 node_modules/
 .next/
 .vercel
+
+.playwright-mcp/
+*.png

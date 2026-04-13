@@ -3,55 +3,65 @@
 import { useState } from "react";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
 
+type Step = "email" | "code";
+
 export default function LoginPage() {
+  const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setMessage(null);
 
     const supabase = createSupabaseBrowser();
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true },
+    });
 
-    if (isSignUp) {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      if (error) {
-        setError(error.message);
-      } else {
-        setMessage("Check your email to confirm your account, then sign in.");
-        setIsSignUp(false);
-      }
+    if (error) {
+      setError(error.message);
     } else {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) {
-        setError(error.message);
-      } else {
-        const params = new URLSearchParams(window.location.search);
-        const next = params.get("next");
-        if (next) {
-          window.location.href = next;
-        } else {
-          // Check if user has any learner profiles
-          const res = await fetch("/api/learners");
-          const learners = await res.json();
-          window.location.href = Array.isArray(learners) && learners.length > 0 ? "/chat" : "/onboarding";
-        }
-      }
+      setMessage(`We sent a 6-digit code to ${email}`);
+      setStep("code");
+    }
+    setLoading(false);
+  }
+
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const supabase = createSupabaseBrowser();
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: code.trim(),
+      type: "email",
+    });
+
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
     }
 
-    setLoading(false);
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next");
+    if (next) {
+      window.location.href = next;
+    } else {
+      const res = await fetch("/api/learners");
+      const learners = await res.json();
+      window.location.href =
+        Array.isArray(learners) && learners.length > 0 ? "/chat" : "/onboarding";
+    }
   }
 
   return (
@@ -61,89 +71,94 @@ export default function LoginPage() {
     >
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1
-            className="text-2xl font-bold tracking-tight"
-            style={{ color: "var(--gold)" }}
-          >
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--gold)" }}>
             open-language
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-dim)" }}>
-            {isSignUp ? "Create an account" : "Sign in to continue"}
+            {step === "email" ? "Sign in with your email" : "Enter the code we sent you"}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-            style={{
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              color: "var(--text)",
-            }}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-            style={{
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              color: "var(--text)",
-            }}
-          />
+        {step === "email" ? (
+          <form onSubmit={handleSendCode} className="space-y-3">
+            <input
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoFocus
+              className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+              }}
+            />
 
-          {error && (
-            <p className="text-xs px-1" style={{ color: "var(--ember)" }}>
-              {error}
-            </p>
-          )}
-          {message && (
-            <p className="text-xs px-1" style={{ color: "var(--moss)" }}>
-              {message}
-            </p>
-          )}
+            {error && <p className="text-xs px-1" style={{ color: "var(--ember)" }}>{error}</p>}
+            {message && <p className="text-xs px-1" style={{ color: "var(--moss)" }}>{message}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-xl text-sm font-medium transition-all"
-            style={{
-              background: "var(--river)",
-              color: "white",
-              opacity: loading ? 0.6 : 1,
-            }}
-          >
-            {loading
-              ? "..."
-              : isSignUp
-                ? "Create Account"
-                : "Sign In"}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 rounded-xl text-sm font-medium transition-all"
+              style={{ background: "var(--river)", color: "white", opacity: loading ? 0.6 : 1 }}
+            >
+              {loading ? "Sending..." : "Send code"}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleVerify} className="space-y-3">
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="123456"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+              required
+              autoFocus
+              maxLength={6}
+              className="w-full rounded-xl px-4 py-3 text-lg text-center font-mono tracking-[0.5em] outline-none"
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+              }}
+            />
 
-        <p className="text-center text-xs" style={{ color: "var(--text-dim)" }}>
-          {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
-          <button
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setError(null);
-              setMessage(null);
-            }}
-            className="underline"
-            style={{ color: "var(--gold)" }}
-          >
-            {isSignUp ? "Sign in" : "Sign up"}
-          </button>
-        </p>
+            {error && <p className="text-xs px-1" style={{ color: "var(--ember)" }}>{error}</p>}
+            {message && <p className="text-xs px-1" style={{ color: "var(--moss)" }}>{message}</p>}
+
+            <button
+              type="submit"
+              disabled={loading || code.length !== 6}
+              className="w-full py-3 rounded-xl text-sm font-medium transition-all"
+              style={{
+                background: "var(--river)",
+                color: "white",
+                opacity: loading || code.length !== 6 ? 0.6 : 1,
+              }}
+            >
+              {loading ? "Verifying..." : "Verify code"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setStep("email");
+                setCode("");
+                setError(null);
+                setMessage(null);
+              }}
+              className="w-full text-xs underline"
+              style={{ color: "var(--text-dim)" }}
+            >
+              Use a different email
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

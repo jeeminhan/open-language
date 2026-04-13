@@ -1496,9 +1496,9 @@ function SessionReview({
   return (
     <div
       className="flex flex-col"
-      style={{ height: "calc(100vh - 160px)", animation: "slideIn 0.4s ease-out" }}
+      style={{ animation: "slideIn 0.4s ease-out" }}
     >
-      <div className="flex-1 overflow-y-auto pb-4 space-y-4">
+      <div className="pb-4 space-y-4">
         {/* Header */}
         <div className="text-center py-6">
           <h2 className="text-xl font-bold mb-2" style={{ color: isJournal ? "var(--gold)" : "var(--gold)" }}>

@@ -2,6 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 
 interface Learner {
   id: string;
@@ -105,6 +115,48 @@ export default function AdminPage() {
         <StatCard label="Errors Logged" value={s.totalErrors} sub={`${s.avgMastery} avg mastery`} />
       </div>
 
+      {/* Activity chart */}
+      {data.users.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text)" }}>
+            Activity by User
+          </h3>
+          <div
+            className="rounded-lg border p-4"
+            style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
+          >
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart
+                data={data.users.map((u) => ({
+                  label: u.learners.map((l) => l.name).join(", ") || u.user_id.slice(0, 8),
+                  sessions: u.sessions,
+                  turns: u.turns,
+                  learners: u.learner_count,
+                }))}
+                margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#2a2a36" />
+                <XAxis dataKey="label" stroke="#8a8780" fontSize={11} />
+                <YAxis stroke="#8a8780" fontSize={11} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#12121a",
+                    border: "1px solid #2a2a36",
+                    borderRadius: "8px",
+                    color: "#e0ddd5",
+                    fontSize: "12px",
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="sessions" fill="#5b8a9a" />
+                <Bar dataKey="turns" fill="#c45e4a" />
+                <Bar dataKey="learners" fill="#8a8780" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
       {/* Top error categories */}
       <div className="mb-6">
         <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text)" }}>
@@ -175,7 +227,11 @@ export default function AdminPage() {
                 <tbody>
                   {u.learners.map((l) => (
                     <tr key={l.id} style={{ borderTop: "1px solid var(--border)" }}>
-                      <Td bold>{l.name}</Td>
+                      <Td bold>
+                        <Link href={`/admin/learners/${l.id}`} style={{ color: "var(--river)" }}>
+                          {l.name}
+                        </Link>
+                      </Td>
                       <Td>{l.native_language} → {l.target_language}</Td>
                       <Td>{l.proficiency_level}</Td>
                       <Td mono>{l.sessions}</Td>

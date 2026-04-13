@@ -28,7 +28,7 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
     } else {
-      setMessage(`We sent a 6-digit code to ${email}`);
+      setMessage(`We sent a code to ${email}`);
       setStep("code");
     }
     setLoading(false);
@@ -114,13 +114,13 @@ export default function LoginPage() {
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
-              placeholder="123456"
+              placeholder="12345678"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
               required
               autoFocus
-              maxLength={6}
-              className="w-full rounded-xl px-4 py-3 text-lg text-center font-mono tracking-[0.5em] outline-none"
+              maxLength={8}
+              className="w-full rounded-xl px-4 py-3 text-lg text-center font-mono tracking-[0.4em] outline-none"
               style={{
                 background: "var(--bg-card)",
                 border: "1px solid var(--border)",
@@ -133,12 +133,12 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading || code.length !== 6}
+              disabled={loading || code.length < 6}
               className="w-full py-3 rounded-xl text-sm font-medium transition-all"
               style={{
                 background: "var(--river)",
                 color: "white",
-                opacity: loading || code.length !== 6 ? 0.6 : 1,
+                opacity: loading || code.length < 6 ? 0.6 : 1,
               }}
             >
               {loading ? "Verifying..." : "Verify code"}

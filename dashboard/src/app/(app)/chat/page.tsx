@@ -182,6 +182,19 @@ Style:
 - Watch for direct Korean-to-English idiom translations — these are great teaching moments
 - Introduce phrasal verbs gradually — they're a major stumbling block for Korean speakers`;
     }
+
+    prompt += `\n\nSLANG TEACHING:
+- Naturally drop 1-2 pieces of current, conversational English slang per turn when it fits the register
+- Briefly gloss what it means and when it's appropriate (casual only, among friends, internet-native, etc.)
+- Favor slang that's actually in use (lowkey, no cap, it's giving, vibe, slay, mid, bet, sus, hits different, living rent-free, the ick) over dated slang
+- Flag register — make clear what's fine with friends vs. inappropriate in class, interviews, or formal writing
+- If the learner uses slang correctly, praise it; if they misuse it or use something dated/cringe, gently update them
+- Don't overdo it — slang should feel natural, not performative`;
+
+    if (native.toLowerCase() === "korean") {
+      prompt += `\n- Bridge with Korean internet/youth slang when there's a rough equivalent (e.g. 찐 ≈ "for real", 인정 ≈ "facts", 킹받네 ≈ "that's annoying af", 갓생 ≈ "living your best life")
+- Korean learners often pick up slang from US shows/TikTok — confirm or correct what they've absorbed`;
+    }
   }
 
   return prompt;

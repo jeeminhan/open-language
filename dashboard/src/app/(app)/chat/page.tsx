@@ -881,75 +881,62 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {/* Spaced repetition practice items — tutor mode only */}
-              {chatMode === "tutor" && adaptive && adaptive.practiceItems.length > 0 && (
-                <div className="mx-auto max-w-md">
-                  <p
-                    className="text-xs uppercase tracking-wider mb-2 text-center"
-                    style={{ color: "var(--ember)" }}
-                  >
-                    Practice Focus — Spaced Repetition
-                  </p>
-                  <div className="space-y-1.5">
-                    {adaptive.practiceItems.map((item, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
-                        style={{
-                          background: "var(--bg-card)",
-                          border: "1px solid var(--border)",
-                        }}
-                      >
-                        <span
-                          className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold"
+              {/* Work on these — merged practice + L1 items, tutor mode only */}
+              {chatMode === "tutor" && adaptive && (() => {
+                const targetLang = (adaptive.targetLanguage || "").toLowerCase();
+                const hasTargetScript = (s: string) => {
+                  if (!s) return false;
+                  if (targetLang.includes("japanese")) return /[\u3040-\u30ff\u4e00-\u9fff]/.test(s);
+                  if (targetLang.includes("korean")) return /[\uac00-\ud7af]/.test(s);
+                  if (targetLang.includes("chinese")) return /[\u4e00-\u9fff]/.test(s);
+                  if (targetLang.includes("english")) return /[a-zA-Z]/.test(s);
+                  return true;
+                };
+                const seen = new Set<string>();
+                const items: { description: string; priority?: number; count?: number }[] = [];
+                for (const p of adaptive.practiceItems) {
+                  if (!hasTargetScript(p.description)) continue;
+                  if (seen.has(p.description)) continue;
+                  seen.add(p.description);
+                  items.push({ description: p.description, priority: p.priority, count: p.occurrence_count });
+                }
+                for (const p of adaptive.l1Patterns) {
+                  if (!hasTargetScript(p.description)) continue;
+                  if (seen.has(p.description)) continue;
+                  seen.add(p.description);
+                  items.push({ description: p.description });
+                }
+                if (items.length === 0) return null;
+                return (
+                  <div className="mx-auto max-w-md">
+                    <p
+                      className="text-xs uppercase tracking-wider mb-2 text-center"
+                      style={{ color: "var(--ember)" }}
+                    >
+                      Work on these
+                    </p>
+                    <div className="space-y-1.5">
+                      {items.slice(0, 6).map((item, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
                           style={{
-                            background: `color-mix(in srgb, var(--ember) ${20 + item.priority * 10}%, transparent)`,
-                            color: "var(--ember)",
+                            background: "var(--bg-card)",
+                            border: "1px solid var(--border)",
                           }}
                         >
-                          {item.priority}
-                        </span>
-                        <span style={{ color: "var(--text)" }}>{item.description}</span>
-                        <span className="ml-auto shrink-0" style={{ color: "var(--text-dim)" }}>
-                          {item.occurrence_count}x
-                        </span>
-                      </div>
-                    ))}
+                          <span style={{ color: "var(--text)" }}>{item.description}</span>
+                          {item.count && (
+                            <span className="ml-auto shrink-0" style={{ color: "var(--text-dim)" }}>
+                              {item.count}x
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <p className="text-[10px] text-center mt-2" style={{ color: "var(--text-dim)" }}>
-                    The tutor will steer conversation toward these patterns
-                  </p>
-                </div>
-              )}
-
-              {/* L1 interference patterns — tutor mode only */}
-              {chatMode === "tutor" && adaptive && adaptive.l1Patterns.length > 0 && (
-                <div className="mx-auto max-w-md">
-                  <p
-                    className="text-xs uppercase tracking-wider mb-2 text-center"
-                    style={{ color: "var(--gold)" }}
-                  >
-                    L1 Interference — English Habits
-                  </p>
-                  <div className="space-y-1.5">
-                    {adaptive.l1Patterns.slice(0, 3).map((pat, i) => (
-                      <div
-                        key={i}
-                        className="px-3 py-2 rounded-lg text-xs"
-                        style={{
-                          background: "var(--bg-card)",
-                          border: "1px solid var(--border)",
-                        }}
-                      >
-                        <span style={{ color: "var(--text)" }}>{pat.description}</span>
-                        <p className="mt-0.5" style={{ color: "var(--gold)" }}>
-                          Why: {pat.l1_source}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Suggested topics — tutor mode only */}
               {chatMode === "tutor" && topics.length > 0 && (
@@ -985,30 +972,6 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {/* Self-learning system note — tutor mode only */}
-              {chatMode === "tutor" && <div
-                className="mx-auto max-w-md rounded-xl p-3"
-                style={{
-                  background: "rgba(98, 148, 184, 0.06)",
-                  border: "1px solid rgba(98, 148, 184, 0.15)",
-                }}
-              >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--river)" strokeWidth="2">
-                    <path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.3C6.2 13.5 5 11.4 5 9a7 7 0 0 1 7-7z" />
-                    <line x1="10" y1="22" x2="14" y2="22" />
-                  </svg>
-                  <span className="text-xs font-semibold" style={{ color: "var(--river)" }}>
-                    Self-Learning System
-                  </span>
-                </div>
-                <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-dim)" }}>
-                  This tutor improves as you use it. It tracks your errors, computes your effective level
-                  from real performance data, and adapts difficulty automatically. A spaced repetition engine
-                  surfaces patterns you need to practice most. An outside review agent catches errors the
-                  real-time checker misses. L1 interference detection identifies native language habits causing mistakes.
-                </p>
-              </div>}
             </div>
           )}
 

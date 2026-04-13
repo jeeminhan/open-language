@@ -96,7 +96,20 @@ Return [] if perfect. No markdown.` }] }],
         const data = await res.json();
         const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "[]";
         const parsed = parseJsonResponse(raw);
-        if (Array.isArray(parsed)) errors = parsed;
+        if (Array.isArray(parsed)) {
+          const targetLang = lang.toLowerCase();
+          const hasTargetScript = (s: string): boolean => {
+            if (!s) return false;
+            if (targetLang.includes("japanese")) return /[\u3040-\u30ff\u4e00-\u9fff]/.test(s);
+            if (targetLang.includes("korean")) return /[\uac00-\ud7af]/.test(s);
+            if (targetLang.includes("chinese")) return /[\u4e00-\u9fff]/.test(s);
+            if (targetLang.includes("english")) return /[a-zA-Z]/.test(s);
+            return true;
+          };
+          errors = parsed.filter((e: AnalyzedError) =>
+            hasTargetScript(e.observed) || hasTargetScript(e.expected)
+          );
+        }
       }
     } catch { /* analysis failed, continue with empty errors */ }
   }

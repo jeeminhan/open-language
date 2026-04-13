@@ -665,14 +665,61 @@
   }
 
   .flow {
-    gap: 0.25rem;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .flowStep {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0;
+  }
+
+  .flowArrow {
+    display: none;
+  }
+
+  .flowNode {
+    width: 100%;
+    text-align: center;
   }
 
   .section {
     padding: 4rem 1.25rem;
+  }
+
+  .terminal {
+    font-size: 0.72rem;
+  }
+
+  .terminalBody {
+    padding: 1rem 1.1rem;
+  }
+
+  .ctaRow {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .ctaPrimary,
+  .ctaSecondary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .heroBadge {
+    font-size: 0.7rem;
+    padding: 0.3rem 0.85rem;
+    max-width: 92vw;
+    line-height: 1.4;
+    text-align: center;
+  }
+
+  .pills {
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .pill {
+    width: 100%;
+    text-align: center;
   }
 }

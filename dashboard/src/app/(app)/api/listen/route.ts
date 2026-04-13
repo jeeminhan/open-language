@@ -6,8 +6,9 @@ export async function POST(request: Request) {
   const userId = await getAuthUserId();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { audio, language } = await request.json();
+  const { audio, language, mimeType } = await request.json();
   if (!audio) return Response.json({ error: "No audio provided" }, { status: 400 });
+  const audioMime: string = typeof mimeType === "string" && mimeType ? mimeType : "audio/pcm;rate=16000";
 
   const apiKey = process.env.LLM_API_KEY;
   if (!apiKey) return Response.json({ error: "LLM_API_KEY not configured" }, { status: 500 });
@@ -50,7 +51,7 @@ If no speech detected: {"utterances": []}`;
           contents: [
             {
               parts: [
-                { inlineData: { mimeType: "audio/pcm;rate=16000", data: audio } },
+                { inlineData: { mimeType: audioMime, data: audio } },
                 { text: prompt },
               ],
             },

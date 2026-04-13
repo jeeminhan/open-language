@@ -5,10 +5,13 @@ import { getLanguageCode } from "@/lib/languages";
 
 interface Utterance {
   id: string;
-  speaker: "A" | "B";
+  speaker: string;
   text: string;
   mine: boolean;
 }
+
+const CHUNK_MS = 10 * 60 * 1000; // 10 min per chunk
+const MAX_MS = 30 * 60 * 1000;   // 30 min cap
 
 interface LearnerInfo {
   target_language?: string;
@@ -58,6 +61,19 @@ export default function ListenPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastFinalAtRef = useRef<number>(0);
   const currentSpeakerRef = useRef<"A" | "B">("A");
+
+  // Gemini long-recording state
+  const [geminiRecording, setGeminiRecording] = useState(false);
+  const [geminiProcessing, setGeminiProcessing] = useState(false);
+  const [geminiDuration, setGeminiDuration] = useState(0);
+  const [geminiStatus, setGeminiStatus] = useState<string>("");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const chunkBlobsRef = useRef<Blob[]>([]);
+  const completedChunksRef = useRef<Blob[]>([]);
+  const geminiTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const chunkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopRequestedRef = useRef(false);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -144,7 +160,7 @@ export default function ListenPage() {
     setUtterances((prev) => prev.map((u) => u.id === id ? { ...u, mine: !u.mine } : u));
   }, []);
 
-  const selectAllSpeaker = useCallback((speaker: "A" | "B") => {
+  const selectAllSpeaker = useCallback((speaker: string) => {
     setUtterances((prev) => prev.map((u) => ({ ...u, mine: u.speaker === speaker })));
   }, []);
 
@@ -173,8 +189,179 @@ export default function ListenPage() {
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
 
-  const speakerColor = (speaker: "A" | "B") => speaker === "A" ? "var(--river)" : "var(--moss)";
+  const speakerColor = (speaker: string) => {
+    if (speaker === "A" || speaker === "Speaker 1") return "var(--river)";
+    if (speaker === "B" || speaker === "Speaker 2") return "var(--moss)";
+    return "var(--ember)";
+  };
   const mineCount = utterances.filter((u) => u.mine).length;
+
+  const blobToBase64 = (blob: Blob): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      const base64 = result.split(",")[1] || "";
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+  const transcribeChunk = useCallback(async (blob: Blob, mime: string, idx: number, total: number): Promise<Utterance[]> => {
+    setGeminiStatus(`Transcribing chunk ${idx + 1}/${total}...`);
+    const base64 = await blobToBase64(blob);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 85000);
+    try {
+      const res = await fetch("/api/listen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audio: base64, language: activeLanguage, mimeType: mime }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Chunk ${idx + 1} failed (${res.status})`);
+      }
+      const data = await res.json();
+      const arr = Array.isArray(data.utterances) ? data.utterances : [];
+      return arr.map((u: { speaker: string; text: string }) => ({
+        id: nextId(),
+        speaker: u.speaker || "Speaker 1",
+        text: u.text,
+        mine: false,
+      }));
+    } finally {
+      clearTimeout(timer);
+    }
+  }, [activeLanguage]);
+
+  const processCollectedChunks = useCallback(async () => {
+    const blobs = completedChunksRef.current;
+    completedChunksRef.current = [];
+    if (blobs.length === 0) { setGeminiProcessing(false); setGeminiStatus(""); return; }
+    const mime = blobs[0].type || "audio/webm";
+    const collected: Utterance[] = [];
+    try {
+      for (let i = 0; i < blobs.length; i++) {
+        const us = await transcribeChunk(blobs[i], mime, i, blobs.length);
+        collected.push(...us);
+        setUtterances([...collected]);
+      }
+      setGeminiStatus("");
+      setChooseMode(true);
+    } catch (err) {
+      const e = err as Error;
+      setErrorMsg(e.message || "Transcription failed.");
+      setGeminiStatus("");
+    }
+    setGeminiProcessing(false);
+  }, [transcribeChunk]);
+
+  const stopMediaTracks = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+  };
+
+  const startNewRecorder = useCallback((stream: MediaStream): MediaRecorder => {
+    const types = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+    const mimeType = types.find((t) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)) || "";
+    const rec = mimeType
+      ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 })
+      : new MediaRecorder(stream, { audioBitsPerSecond: 32000 });
+
+    chunkBlobsRef.current = [];
+    rec.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chunkBlobsRef.current.push(e.data);
+    };
+    rec.onstop = () => {
+      const parts = chunkBlobsRef.current;
+      chunkBlobsRef.current = [];
+      if (parts.length > 0) {
+        const blob = new Blob(parts, { type: parts[0].type || mimeType || "audio/webm" });
+        completedChunksRef.current.push(blob);
+      }
+      // If user hasn't stopped and we haven't hit max, start the next chunk
+      if (!stopRequestedRef.current && geminiDuration * 1000 < MAX_MS) {
+        const next = startNewRecorder(stream);
+        mediaRecorderRef.current = next;
+        next.start();
+        chunkTimerRef.current = setTimeout(() => {
+          if (mediaRecorderRef.current === next && next.state === "recording") next.stop();
+        }, CHUNK_MS);
+      } else {
+        // Final stop — clean up and process
+        stopMediaTracks();
+        if (geminiTimerRef.current) { clearInterval(geminiTimerRef.current); geminiTimerRef.current = null; }
+        setGeminiRecording(false);
+        setGeminiProcessing(true);
+        processCollectedChunks();
+      }
+    };
+    return rec;
+  }, [geminiDuration, processCollectedChunks]);
+
+  const startGeminiRecording = useCallback(async () => {
+    if (typeof MediaRecorder === "undefined") {
+      setErrorMsg("MediaRecorder not supported in this browser.");
+      return;
+    }
+    setErrorMsg(null);
+    setUtterances([]);
+    setAnalysis(null);
+    setChooseMode(false);
+    setGeminiDuration(0);
+    setGeminiStatus("");
+    completedChunksRef.current = [];
+    stopRequestedRef.current = false;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      mediaStreamRef.current = stream;
+      const rec = startNewRecorder(stream);
+      mediaRecorderRef.current = rec;
+      rec.start();
+      setGeminiRecording(true);
+      geminiTimerRef.current = setInterval(() => {
+        setGeminiDuration((d) => {
+          const next = d + 1;
+          if (next * 1000 >= MAX_MS) {
+            stopRequestedRef.current = true;
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+              mediaRecorderRef.current.stop();
+            }
+          }
+          return next;
+        });
+      }, 1000);
+      // First chunk rotation
+      chunkTimerRef.current = setTimeout(() => {
+        if (mediaRecorderRef.current === rec && rec.state === "recording") rec.stop();
+      }, CHUNK_MS);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Microphone permission denied.");
+    }
+  }, [startNewRecorder]);
+
+  const stopGeminiRecording = useCallback(() => {
+    stopRequestedRef.current = true;
+    if (chunkTimerRef.current) { clearTimeout(chunkTimerRef.current); chunkTimerRef.current = null; }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+    } else {
+      stopMediaTracks();
+      if (geminiTimerRef.current) { clearInterval(geminiTimerRef.current); geminiTimerRef.current = null; }
+      setGeminiRecording(false);
+      setGeminiProcessing(true);
+      processCollectedChunks();
+    }
+  }, [processCollectedChunks]);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -273,20 +460,16 @@ export default function ListenPage() {
             Tap any line to mark it as yours. <span style={{ color: "var(--gold)" }}>{mineCount}</span> selected.
           </p>
           <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => selectAllSpeaker("A")}
-              className="px-2.5 py-1 rounded border"
-              style={{ borderColor: "var(--river)", color: "var(--river)" }}
-            >
-              All Speaker A
-            </button>
-            <button
-              onClick={() => selectAllSpeaker("B")}
-              className="px-2.5 py-1 rounded border"
-              style={{ borderColor: "var(--moss)", color: "var(--moss)" }}
-            >
-              All Speaker B
-            </button>
+            {[...new Set(utterances.map((u) => u.speaker))].map((sp) => (
+              <button
+                key={sp}
+                onClick={() => selectAllSpeaker(sp)}
+                className="px-2.5 py-1 rounded border"
+                style={{ borderColor: speakerColor(sp), color: speakerColor(sp) }}
+              >
+                All {sp.length === 1 ? `Speaker ${sp}` : sp}
+              </button>
+            ))}
             <button
               onClick={() => setUtterances((prev) => prev.map((u) => ({ ...u, mine: false })))}
               className="px-2.5 py-1 rounded border"
@@ -367,7 +550,7 @@ export default function ListenPage() {
                   textAlign: "center",
                 }}
               >
-                {isMine ? "You" : `Speaker ${u.speaker}`}
+                {isMine ? "You" : (u.speaker.length === 1 ? `Speaker ${u.speaker}` : u.speaker)}
               </span>
               <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
                 {u.text}
@@ -390,10 +573,66 @@ export default function ListenPage() {
         )}
       </div>
 
+      {/* Gemini long-recording section */}
+      <div
+        className="mt-8 rounded-lg p-4 border"
+        style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
+      >
+        <h3 className="text-sm font-bold mb-1" style={{ color: "var(--gold)" }}>
+          High-quality mode (Gemini, paid)
+        </h3>
+        <p className="text-xs mb-3" style={{ color: "var(--text-dim)" }}>
+          Records up to 30 min, splits into 10-min chunks, and uploads to Gemini for accurate
+          transcription with real speaker diarization. ~$0.06 per 30 min.
+        </p>
+
+        <div className="flex gap-3 items-center flex-wrap">
+          {!geminiRecording && !geminiProcessing ? (
+            <button
+              onClick={startGeminiRecording}
+              disabled={listening}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-all hover:scale-105 disabled:opacity-50"
+              style={{ background: "var(--gold)", color: "var(--bg)" }}
+            >
+              Start HQ Recording
+            </button>
+          ) : geminiRecording ? (
+            <button
+              onClick={stopGeminiRecording}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-all hover:scale-105"
+              style={{ background: "var(--ember)", color: "white" }}
+            >
+              Stop &amp; Transcribe
+            </button>
+          ) : null}
+
+          {geminiRecording && (
+            <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-dim)" }}>
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: "var(--gold)", animation: "pulse 1.5s ease-in-out infinite" }} />
+              <span className="font-mono" style={{ color: "var(--text)" }}>{formatTime(geminiDuration)}</span>
+              <span style={{ color: "var(--text-dim)" }}> / 30:00</span>
+            </div>
+          )}
+
+          {geminiProcessing && (
+            <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-dim)" }}>
+              <span
+                className="w-4 h-4 rounded-full border-2"
+                style={{ borderColor: "var(--gold)", borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }}
+              />
+              {geminiStatus || "Processing..."}
+            </div>
+          )}
+        </div>
+      </div>
+
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>

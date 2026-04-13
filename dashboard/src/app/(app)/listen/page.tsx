@@ -31,6 +31,7 @@ export default function ListenPage() {
   const [chooseMode, setChooseMode] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
+  const [analysisMeta, setAnalysisMeta] = useState<{ sessionId?: string; errorsFound?: number; sentencesAnalyzed?: number } | null>(null);
   const [duration, setDuration] = useState(0);
   const [learner, setLearner] = useState<LearnerInfo>({});
   const [useTargetLang, setUseTargetLang] = useState(true);
@@ -90,6 +91,7 @@ export default function ListenPage() {
     setUtterances([]);
     setLiveText("");
     setAnalysis(null);
+    setAnalysisMeta(null);
     setChooseMode(false);
     setDuration(0);
     setErrorMsg(null);
@@ -177,8 +179,10 @@ export default function ListenPage() {
       });
       const data = await res.json();
       setAnalysis(data.analysis || "No analysis available.");
+      setAnalysisMeta({ sessionId: data.sessionId, errorsFound: data.errorsFound, sentencesAnalyzed: data.sentencesAnalyzed });
     } catch {
       setAnalysis("Failed to analyze.");
+      setAnalysisMeta(null);
     }
     setAnalyzing(false);
   }, [utterances]);
@@ -312,6 +316,7 @@ export default function ListenPage() {
     setErrorMsg(null);
     setUtterances([]);
     setAnalysis(null);
+    setAnalysisMeta(null);
     setChooseMode(false);
     setGeminiDuration(0);
     setGeminiStatus("");
@@ -509,7 +514,18 @@ export default function ListenPage() {
       {/* Analysis result */}
       {analysis && (
         <div className="rounded-lg p-4 mb-6 border" style={{ background: "var(--bg-card)", borderColor: "var(--gold)" }}>
-          <h3 className="text-sm font-bold mb-2" style={{ color: "var(--gold)" }}>Analysis</h3>
+          <div className="flex items-baseline justify-between mb-2 gap-2 flex-wrap">
+            <h3 className="text-sm font-bold" style={{ color: "var(--gold)" }}>Analysis</h3>
+            {analysisMeta && (
+              <div className="text-xs flex gap-3" style={{ color: "var(--text-dim)" }}>
+                {analysisMeta.sentencesAnalyzed != null && <span>{analysisMeta.sentencesAnalyzed} sentences</span>}
+                {analysisMeta.errorsFound != null && <span>{analysisMeta.errorsFound} errors saved</span>}
+                {analysisMeta.sessionId && (
+                  <a href={`/sessions/${analysisMeta.sessionId}`} style={{ color: "var(--river)" }}>view session →</a>
+                )}
+              </div>
+            )}
+          </div>
           <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "var(--text)" }}>
             {analysis}
           </div>

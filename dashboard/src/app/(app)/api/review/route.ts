@@ -105,6 +105,7 @@ export async function POST(req: Request) {
     .join("\n");
 
   const isEnglishTarget = lang.toLowerCase() === "english";
+  const expressionGuidance = getExpressionGuidance(lang, native);
 
   // Run all review passes in parallel
   const [errorsResult, evalResult, vocabResult, phrasingsResult, expressionsResult, interestsResult] = await Promise.allSettled([
@@ -214,18 +215,11 @@ Return a JSON array:
 Only suggest things that are genuinely useful upgrades, not nitpicks. Max 5 suggestions. No markdown.`, 1200),
 
     // 5. Expression/idiom detection — track what was encountered
-    callGemini(apiKey, model, `Analyze this ${lang} conversation. Identify ${lang} idioms, set phrases, grammar patterns, and expressions used by EITHER the tutor or the learner.
+    callGemini(apiKey, model, `Analyze this ${lang} conversation. Identify ${lang} idioms, slang, set phrases, grammar patterns, and expressions used by EITHER the tutor or the learner.
 
 For each, note whether the LEARNER actually produced it or only encountered it from the tutor. This distinction matters — understanding something vs being able to use it are different skills.
-${isEnglishTarget ? `
-IMPORTANT — For English conversations, pay special attention to:
-- Idioms (e.g. "break the ice", "hit the nail on the head", "a piece of cake")
-- Phrasal verbs (e.g. "look into", "come up with", "figure out")
-- Collocations (e.g. "make a decision" not "do a decision")
-- Slang and informal expressions
-- Any L1 idioms the learner translated literally into English (mark these as type "l1_transfer")
-${native.toLowerCase() === "korean" ? `- Korean expressions translated literally (e.g. "눈이 높다" → "my eyes are high" instead of "I have high standards")` : ""}
-These are HIGH VALUE items to track — idiom mastery is a key marker of fluency.` : ""}
+
+${expressionGuidance}
 
 Conversation:
 
@@ -234,13 +228,13 @@ ${transcript}
 Return a JSON array:
 [{
   "expression": "the ${lang} expression/pattern",
-  "type": "idiom|phrasal_verb|set_phrase|grammar_pattern|colloquial|honorific|l1_transfer",
+  "type": "idiom|slang|phrasal_verb|set_phrase|grammar_pattern|colloquial|honorific|l1_transfer",
   "meaning": "${isEnglishTarget ? "meaning and usage context" : "English meaning"}",
   "context": "the sentence where it appeared",
   "learner_used": true/false (did the LEARNER produce this, or just the tutor?)
 }]
 
-Include both simple and complex patterns. No markdown.`, 1200),
+Distinguish slang (informal, current, register-limited — e.g. "lowkey", "やばい", "대박") from idioms (fixed figurative phrases — e.g. "break the ice", "猫の手も借りたい"). Include both simple and complex patterns. No markdown.`, 1200),
 
     // 6. Interest/profile detection — learn about the person
     callGemini(apiKey, model, `Analyze this conversation between a language tutor and learner. Extract any personal interests, preferences, or topics the LEARNER mentions or shows enthusiasm about.

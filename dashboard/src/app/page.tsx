@@ -419,17 +419,17 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 9 Learning Loops ─── */}
+      {/* ─── Learning Loops ─── */}
       <section className={styles.section}>
         <SectionLabel color="river">Self-Learning System</SectionLabel>
         <h2 className={styles.h2}>
-          9 feedback loops{" "}
+          Feedback loops{" "}
           <span className={styles.dim}>that compound.</span>
         </h2>
         <p className={styles.sectionDesc}>
-          The tutor doesn&apos;t just respond — it evaluates itself, clusters
-          your errors by root cause, builds a spaced repetition queue, and
-          adapts its difficulty. Every session makes the next one better.
+          The tutor clusters your errors by root cause, spaces them out for
+          review, and adapts difficulty. Every session makes the next one
+          better.
         </p>
 
         <div className={styles.flow}>
@@ -454,15 +454,12 @@ export default function LandingPage() {
 
         <div className={styles.loopsGrid}>
           {[
-            ["Adaptive Difficulty", "Computes your real level from grammar mastery and error rate. Pushes harder content as you improve."],
-            ["Spaced Repetition", "Prioritizes patterns you struggle with and steers conversation toward them at optimal intervals."],
-            ["L1 Interference", "Identifies errors caused by native language habits and explains why you make the mistake."],
-            ["Second-Pass Review", "After each session, an outside agent reviews the full conversation to catch missed errors."],
-            ["Tutor Self-Evaluation", "Grades its own responses for correction quality and missed teaching moments."],
-            ["Error Clustering", "Groups related errors by root cause with specific fix recommendations instead of isolated mistakes."],
-            ["Vocab Tracking", "When you ask what a word means, it's saved. Builds a personal dictionary of words you're learning."],
-            ["Topic Difficulty", "Each conversation is scored for difficulty so future topic suggestions match your current level."],
-            ["Interest Profiling", "Detects your interests from conversations and generates personalized topics you actually want to discuss."],
+            ["Adaptive Difficulty", "Computes your real level from grammar mastery and pushes harder content as you improve."],
+            ["Spaced Repetition", "Prioritizes patterns you struggle with and steers conversation toward them."],
+            ["L1 Interference", "Flags errors caused by native-language habits and explains why."],
+            ["Error Clustering", "Groups related mistakes by root cause instead of treating them as isolated slip-ups."],
+            ["Vocab Tracking", "Highlight a word to save it. Builds a personal dictionary over time."],
+            ["Interest Profiling", "Detects what you actually like talking about, and generates topics from it."],
           ].map(([title, desc], i) => (
             <div key={i} className={styles.loopCard}>
               <span className={styles.loopNum}>{i + 1}</span>

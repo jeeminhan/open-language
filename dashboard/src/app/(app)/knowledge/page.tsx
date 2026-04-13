@@ -43,7 +43,7 @@ interface PhrasingSuggestion {
   created_at: string;
 }
 
-type Tab = "overview" | "expressions" | "grammar" | "suggestions";
+type Tab = "overview" | "expressions" | "vocabulary" | "grammar" | "suggestions";
 
 export default function KnowledgePage() {
   const [vocab, setVocab] = useState<VocabItem[]>([]);
@@ -75,7 +75,8 @@ export default function KnowledgePage() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "overview", label: "Overview" },
-    { key: "expressions", label: `Expressions (${expressions.length})` },
+    { key: "expressions", label: `Idioms & Slang (${expressions.length})` },
+    { key: "vocabulary", label: `Vocabulary (${vocab.length})` },
     { key: "grammar", label: `Grammar (${grammar.length})` },
     { key: "suggestions", label: `Suggestions (${suggestions.length})` },
   ];
@@ -145,9 +146,13 @@ export default function KnowledgePage() {
           passiveExpr={passiveExpr}
           unknownVocab={unknownVocab}
           suggestions={suggestions.slice(0, 5)}
+          totalVocab={vocab.length}
+          totalGrammar={grammar.length}
+          totalExpressions={expressions.length}
         />
       )}
       {tab === "expressions" && <ExpressionsTab expressions={expressions} />}
+      {tab === "vocabulary" && <VocabularyTab vocab={vocab} />}
       {tab === "grammar" && <GrammarTab grammar={grammar} />}
       {tab === "suggestions" && <SuggestionsTab suggestions={suggestions} />}
     </div>
@@ -168,13 +173,19 @@ function SpectrumCard({ label, count, color, description }: { label: string; cou
 
 function OverviewTab({
   weakGrammar, strongGrammar, passiveExpr, unknownVocab, suggestions,
+  totalVocab, totalGrammar, totalExpressions,
 }: {
   weakGrammar: GrammarItem[];
   strongGrammar: GrammarItem[];
   passiveExpr: Expression[];
   unknownVocab: VocabItem[];
   suggestions: PhrasingSuggestion[];
+  totalVocab: number;
+  totalGrammar: number;
+  totalExpressions: number;
 }) {
+  const hasAnyData = totalVocab > 0 || totalGrammar > 0 || totalExpressions > 0 || suggestions.length > 0;
+  const hasSurfacedData = weakGrammar.length > 0 || strongGrammar.length > 0 || passiveExpr.length > 0 || unknownVocab.length > 0 || suggestions.length > 0;
   return (
     <div className="space-y-4">
       {/* What you don't know you don't know */}
@@ -290,7 +301,19 @@ function OverviewTab({
         </div>
       )}
 
-      {weakGrammar.length === 0 && strongGrammar.length === 0 && passiveExpr.length === 0 && unknownVocab.length === 0 && suggestions.length === 0 && (
+      {!hasSurfacedData && hasAnyData && (
+        <div className="card text-center py-8 space-y-2">
+          <p style={{ color: "var(--text)" }}>
+            You have {totalVocab} words, {totalExpressions} expressions, and {totalGrammar} grammar patterns tracked.
+          </p>
+          <p className="text-xs" style={{ color: "var(--text-dim)" }}>
+            Nothing highlighted here yet — patterns need at least 3 uses to show mastery, and expressions need to come up in conversation.
+            Browse the tabs above to see everything, or keep chatting to build the picture.
+          </p>
+        </div>
+      )}
+
+      {!hasAnyData && (
         <div className="card text-center py-8">
           <p style={{ color: "var(--text-dim)" }}>
             No knowledge tracked yet. Start a conversation to begin building your map.
@@ -304,12 +327,19 @@ function OverviewTab({
 // ── Expressions tab ────────────────────────────────────
 
 function ExpressionsTab({ expressions }: { expressions: Expression[] }) {
-  const [filter, setFilter] = useState<string>("all");
+  const [profFilter, setProfFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
 
   const proficiencyOrder = { passive: 0, emerging: 1, active: 2, mastered: 3 };
-  const filtered = filter === "all"
-    ? expressions
-    : expressions.filter((e) => e.proficiency === filter);
+
+  const matchesProf = (e: Expression) =>
+    profFilter === "all" ||
+    e.proficiency === profFilter ||
+    (profFilter === "active" && e.proficiency === "mastered");
+
+  const matchesType = (e: Expression) => typeFilter === "all" || e.type === typeFilter;
+
+  const filtered = expressions.filter((e) => matchesProf(e) && matchesType(e));
 
   const sorted = [...filtered].sort((a, b) =>
     (proficiencyOrder[a.proficiency as keyof typeof proficiencyOrder] ?? 0) -
@@ -320,24 +350,77 @@ function ExpressionsTab({ expressions }: { expressions: Expression[] }) {
     passive: "var(--gold)", emerging: "var(--river)", active: "var(--moss)", mastered: "var(--moss)",
   };
 
+  const typeLabels: Record<string, string> = {
+    idiom: "Idioms",
+    slang: "Slang",
+    phrasal_verb: "Phrasal Verbs",
+    set_phrase: "Set Phrases",
+    grammar_pattern: "Grammar Patterns",
+    colloquial: "Colloquial",
+    honorific: "Honorifics",
+    l1_transfer: "L1 Transfer",
+  };
+
+  const availableTypes = Array.from(new Set(expressions.map((e) => e.type))).filter(Boolean);
+
   return (
-    <div className="space-y-4">
-      <div className="flex gap-1.5 flex-wrap">
-        {["all", "passive", "emerging", "active"].map((f) => {
-          const count = f === "all" ? expressions.length : expressions.filter((e) => e.proficiency === f || (f === "active" && e.proficiency === "mastered")).length;
-          return (
-            <button key={f} onClick={() => setFilter(f)}
+    <div className="space-y-3">
+      <div>
+        <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: "var(--text-dim)" }}>
+          Proficiency
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
+          {["all", "passive", "emerging", "active"].map((f) => {
+            const count = f === "all"
+              ? expressions.filter(matchesType).length
+              : expressions.filter((e) => matchesType(e) && (e.proficiency === f || (f === "active" && e.proficiency === "mastered"))).length;
+            return (
+              <button key={f} onClick={() => setProfFilter(f)}
+                className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                style={{
+                  background: profFilter === f ? (profColors[f] || "var(--river)") : "var(--bg-card)",
+                  color: profFilter === f ? "white" : "var(--text-dim)",
+                  border: `1px solid ${profFilter === f ? (profColors[f] || "var(--river)") : "var(--border)"}`,
+                }}>
+                {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)} ({count})
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {availableTypes.length > 0 && (
+        <div>
+          <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: "var(--text-dim)" }}>
+            Type
+          </div>
+          <div className="flex gap-1.5 flex-wrap">
+            <button onClick={() => setTypeFilter("all")}
               className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
               style={{
-                background: filter === f ? (profColors[f] || "var(--river)") : "var(--bg-card)",
-                color: filter === f ? "white" : "var(--text-dim)",
-                border: `1px solid ${filter === f ? (profColors[f] || "var(--river)") : "var(--border)"}`,
+                background: typeFilter === "all" ? "var(--river)" : "var(--bg-card)",
+                color: typeFilter === "all" ? "white" : "var(--text-dim)",
+                border: `1px solid ${typeFilter === "all" ? "var(--river)" : "var(--border)"}`,
               }}>
-              {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)} ({count})
+              All ({expressions.filter(matchesProf).length})
             </button>
-          );
-        })}
-      </div>
+            {availableTypes.map((t) => {
+              const count = expressions.filter((e) => e.type === t && matchesProf(e)).length;
+              return (
+                <button key={t} onClick={() => setTypeFilter(t)}
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                  style={{
+                    background: typeFilter === t ? "var(--river)" : "var(--bg-card)",
+                    color: typeFilter === t ? "white" : "var(--text-dim)",
+                    border: `1px solid ${typeFilter === t ? "var(--river)" : "var(--border)"}`,
+                  }}>
+                  {typeLabels[t] || t.replace("_", " ")} ({count})
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {sorted.length === 0 ? (
         <div className="card text-center py-6">
@@ -460,6 +543,97 @@ function SuggestionsTab({ suggestions }: { suggestions: PhrasingSuggestion[] }) 
           <div className="text-[10px] mt-1" style={{ color: "var(--text-dim)" }}>{s.created_at?.slice(0, 10)}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Vocabulary tab ─────────────────────────────────────
+
+function VocabularyTab({ vocab }: { vocab: VocabItem[] }) {
+  const [filter, setFilter] = useState<"all" | "unknown" | "known">("all");
+  const [search, setSearch] = useState("");
+
+  const unknown = vocab.filter((v) => v.language === "unknown");
+  const known = vocab.filter((v) => v.language !== "unknown");
+
+  const filtered = (filter === "unknown" ? unknown : filter === "known" ? known : vocab)
+    .filter((v) => !search || v.word.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => (b.times_used || 0) - (a.times_used || 0));
+
+  if (vocab.length === 0) {
+    return (
+      <div className="card text-center py-6">
+        <p style={{ color: "var(--text-dim)" }}>No vocabulary tracked yet. Start a conversation to begin building your word list.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2 items-center flex-wrap">
+        {(["all", "unknown", "known"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+            style={{
+              background: filter === f ? "var(--river)" : "var(--bg-card)",
+              color: filter === f ? "white" : "var(--text-dim)",
+              border: `1px solid ${filter === f ? "var(--river)" : "var(--border)"}`,
+            }}
+          >
+            {f === "all" ? `All (${vocab.length})` : f === "unknown" ? `Learning (${unknown.length})` : `Known (${known.length})`}
+          </button>
+        ))}
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search words..."
+          className="ml-auto px-3 py-1 rounded-lg text-xs outline-none"
+          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text)" }}
+        />
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="card text-center py-6">
+          <p style={{ color: "var(--text-dim)" }}>No words match your filter.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+          {filtered.map((v) => (
+            <div
+              key={v.id}
+              className="rounded-xl p-2.5"
+              style={{
+                background: "var(--bg-card)",
+                border: `1px solid ${v.language === "unknown" ? "rgba(196, 94, 74, 0.3)" : "var(--border)"}`,
+              }}
+            >
+              <div className="flex items-start justify-between gap-1">
+                <span className="text-sm font-medium" style={{ color: "var(--text)" }}>
+                  {v.word}
+                </span>
+                {v.language === "unknown" ? (
+                  <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                    style={{ background: "rgba(196, 94, 74, 0.15)", color: "var(--ember)" }}>
+                    learning
+                  </span>
+                ) : (
+                  <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                    style={{ background: "rgba(126, 154, 110, 0.15)", color: "var(--moss)" }}>
+                    known
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-1 text-[10px]" style={{ color: "var(--text-dim)" }}>
+                <span>{v.times_used}x used</span>
+                {v.last_used && <span>{v.last_used.slice(0, 10)}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

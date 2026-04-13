@@ -399,3 +399,76 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
 
   return Response.json({ errors, tutorEval, unknownWords, errorClusters, phrasingSuggestions, expressions, detectedInterests });
 }
+
+function getExpressionGuidance(targetLang: string, nativeLang: string): string {
+  const target = targetLang.toLowerCase();
+  const native = nativeLang.toLowerCase();
+
+  const koreanBridge = native === "korean"
+    ? `- Korean-to-English L1 transfer (e.g. "눈이 높다" → "my eyes are high" instead of "I have high standards") — mark as type "l1_transfer"`
+    : "";
+
+  switch (target) {
+    case "english":
+      return `IMPORTANT — For English, pay special attention to:
+- Idioms (e.g. "break the ice", "hit the nail on the head", "a piece of cake")
+- Slang — current, register-limited informal language (e.g. "lowkey", "no cap", "it's giving", "mid", "bet", "sus", "hits different")
+- Phrasal verbs (e.g. "look into", "come up with", "figure out")
+- Collocations (e.g. "make a decision" not "do a decision")
+- L1 idioms the learner translated literally — mark as type "l1_transfer"
+${koreanBridge}
+These are HIGH VALUE items to track — idiom and slang mastery are key fluency markers.`;
+
+    case "japanese":
+      return `IMPORTANT — For Japanese, pay special attention to:
+- 慣用句 / idioms (e.g. 猫の手も借りたい, 腹が立つ, 頭に来る)
+- 四字熟語 / four-character idioms (e.g. 一石二鳥, 十人十色, 自業自得) — mark as type "idiom"
+- 決まり文句 / set phrases (e.g. お疲れ様です, よろしくお願いします, お世話になっております) — mark as type "set_phrase"
+- Slang and casual speech (e.g. やばい, めっちゃ, ぶっちゃけ, ガチ, それな) — mark as type "slang"
+- Keigo / honorific forms (謙譲語, 尊敬語, 丁寧語) — mark as type "honorific"
+- Sentence-final particles carrying nuance (よ, ね, わ, ぞ, ぜ, かな) — mark as type "colloquial"
+- L1 expressions translated literally — mark as type "l1_transfer"
+These are HIGH VALUE items to track — natural Japanese relies heavily on set phrases and register.`;
+
+    case "korean":
+      return `IMPORTANT — For Korean, pay special attention to:
+- 사자성어 / four-character idioms (e.g. 일석이조, 십인십색) — mark as type "idiom"
+- 속담 / proverbs (e.g. 가는 말이 고와야 오는 말이 곱다) — mark as type "idiom"
+- Set phrases (e.g. 수고하셨습니다, 잘 부탁드립니다) — mark as type "set_phrase"
+- Slang (e.g. 대박, 헐, 찐, 킹받네, 갓생, 인정) — mark as type "slang"
+- 반말 vs 존댓말 register shifts — mark formal ones as type "honorific"
+- Colloquial contractions and particles (e.g. 근데, 아님, -잖아) — mark as type "colloquial"
+- L1 expressions translated literally — mark as type "l1_transfer"
+These are HIGH VALUE items to track — register and idiomatic fluency mark advanced Korean.`;
+
+    case "spanish":
+      return `IMPORTANT — For Spanish, pay special attention to:
+- Modismos / idioms (e.g. "tomar el pelo", "estar en las nubes") — mark as type "idiom"
+- Refranes / proverbs (e.g. "más vale tarde que nunca") — mark as type "idiom"
+- Slang — regional when relevant (tío/güey/che/pana, "guay", "chido", "mola") — mark as type "slang"
+- Set phrases (e.g. "por si acaso", "a lo mejor") — mark as type "set_phrase"
+- Subjunctive-triggering expressions — mark as type "grammar_pattern"
+- L1 expressions translated literally — mark as type "l1_transfer"`;
+
+    case "chinese":
+    case "mandarin":
+      return `IMPORTANT — For Chinese, pay special attention to:
+- 成语 / four-character idioms (e.g. 画蛇添足, 一举两得) — mark as type "idiom"
+- 歇后语 / two-part allegorical sayings — mark as type "idiom"
+- 口语 expressions and slang (e.g. 牛逼, 靠谱, 佛系, 躺平) — mark as type "slang"
+- Set phrases (e.g. 不好意思, 没关系) — mark as type "set_phrase"
+- Measure-word collocations — mark as type "colloquial"
+- L1 expressions translated literally — mark as type "l1_transfer"`;
+
+    case "french":
+      return `IMPORTANT — For French, pay special attention to:
+- Idioms (e.g. "poser un lapin", "avoir le cafard") — mark as type "idiom"
+- Slang / argot / verlan (e.g. "ouf", "meuf", "kiffer", "relou") — mark as type "slang"
+- Set phrases (e.g. "au fait", "du coup", "c'est pas grave") — mark as type "set_phrase"
+- Subjunctive-triggering expressions — mark as type "grammar_pattern"
+- L1 expressions translated literally — mark as type "l1_transfer"`;
+
+    default:
+      return `Pay attention to idioms, slang, set phrases, and any L1 expressions the learner translated literally (mark L1 translations as type "l1_transfer"). These are high-value fluency markers.`;
+  }
+}

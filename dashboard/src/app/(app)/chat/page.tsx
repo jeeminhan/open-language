@@ -1640,12 +1640,12 @@ function SessionReview({
             <div className="grid md:grid-cols-2 gap-2">
               {reviewData.expressions.map((expr, i) => {
                 const typeLabel: Record<string, string> = {
-                  idiom: "Idiom", phrasal_verb: "Phrasal Verb", set_phrase: "Set Phrase",
+                  idiom: "Idiom", slang: "Slang", phrasal_verb: "Phrasal Verb", set_phrase: "Set Phrase",
                   grammar_pattern: "Grammar", colloquial: "Colloquial", honorific: "Honorific",
                   l1_transfer: "L1 Transfer",
                 };
                 const typeColor: Record<string, string> = {
-                  idiom: "var(--river)", phrasal_verb: "var(--river)", l1_transfer: "var(--ember)",
+                  idiom: "var(--river)", slang: "var(--ember)", phrasal_verb: "var(--river)", l1_transfer: "var(--ember)",
                   colloquial: "var(--gold)", set_phrase: "var(--moss)", grammar_pattern: "var(--text-dim)",
                   honorific: "var(--gold)",
                 };

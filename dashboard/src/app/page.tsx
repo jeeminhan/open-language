@@ -532,6 +532,10 @@ export default function LandingPage() {
             <span className={styles.tDim}>Any language pair:</span> Korean →
             English, etc.
           </span>
+          <span className={styles.pill}>
+            <span className={styles.tDim}>Sync across devices:</span>{" "}
+            <span className={styles.pillValue}>Supabase</span>
+          </span>
         </div>
 
         <div style={{ textAlign: "center", marginTop: "3rem" }}>

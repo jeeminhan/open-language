@@ -543,13 +543,15 @@ export async function markVocabKnown(learnerId: string, word: string): Promise<v
 }
 
 // SM-2 lite: correct → extend interval; incorrect → reset to 1 day.
-// learning(0d) → reviewing(1d) → reviewing(3d) → reviewing(7d) → reviewing(21d) → known
+// Progression: 0d → 1d → 3d → 7d → 14d → 30d → known(60d)
+// Tuned shorter than pure SM-2 so learners see repeat exposure within days, not weeks.
 function nextInterval(current: number, correct: boolean): number {
   if (!correct) return 1;
   if (current < 1) return 1;
   if (current < 3) return 3;
   if (current < 7) return 7;
-  if (current < 21) return 21;
+  if (current < 14) return 14;
+  if (current < 30) return 30;
   return 60;
 }
 
@@ -1036,6 +1038,69 @@ export async function getSessionRecap(sessionId: string): Promise<SessionRecap> 
     errorCount,
     topErrors,
   };
+}
+
+// Batch version: one query for many sessions, keyed by sessionId.
+export async function getSessionRecaps(sessionIds: string[]): Promise<Map<string, SessionRecap>> {
+  const out = new Map<string, SessionRecap>();
+  if (sessionIds.length === 0) return out;
+
+  const { data } = await supabase
+    .from("turns")
+    .select("session_id, analysis_json")
+    .in("session_id", sessionIds);
+
+  interface TurnRow { session_id: string; analysis_json: string | null }
+  const bySession = new Map<string, TurnRow[]>();
+  for (const row of (data ?? []) as TurnRow[]) {
+    if (!bySession.has(row.session_id)) bySession.set(row.session_id, []);
+    bySession.get(row.session_id)!.push(row);
+  }
+
+  for (const sessionId of sessionIds) {
+    const rows = bySession.get(sessionId) ?? [];
+    const learned = new Set<string>();
+    const reviewed = new Set<string>();
+    const grammar = new Set<string>();
+    const errorCounts = new Map<string, number>();
+    let errorCount = 0;
+
+    for (const row of rows) {
+      if (!row.analysis_json) continue;
+      let analysis: Record<string, unknown>;
+      try { analysis = JSON.parse(row.analysis_json); } catch { continue; }
+
+      const vocabChecks = (analysis.vocab_checks as Array<{ word?: string; status?: string }>) || [];
+      for (const c of vocabChecks) {
+        const w = c.word?.trim().toLowerCase();
+        if (!w) continue;
+        if (c.status === "correct" || c.status === "known") reviewed.add(w);
+        else if (c.status === "unknown" || c.status === "incorrect") learned.add(w);
+      }
+
+      const grammarCorrect = (analysis.grammar_used_correctly as Array<{ pattern?: string }>) || [];
+      for (const g of grammarCorrect) if (g.pattern?.trim()) grammar.add(g.pattern.trim());
+
+      const errors = (analysis.errors as Array<{ pattern_description?: string; type?: string }>) || [];
+      for (const e of errors) {
+        errorCount++;
+        const key = e.pattern_description?.trim() || e.type?.trim();
+        if (key) errorCounts.set(key, (errorCounts.get(key) ?? 0) + 1);
+      }
+    }
+
+    const topErrors = [...errorCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => k);
+    out.set(sessionId, {
+      sessionId,
+      vocabLearned: [...learned],
+      vocabReviewed: [...reviewed],
+      grammarPracticed: [...grammar],
+      errorCount,
+      topErrors,
+    });
+  }
+
+  return out;
 }
 
 export async function getVocabSummary(learnerId: string): Promise<{

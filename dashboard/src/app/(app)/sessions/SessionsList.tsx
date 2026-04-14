@@ -6,7 +6,19 @@ import type { Session } from "@/lib/db";
 
 type Mode = "all" | "chat" | "listen";
 
-export default function SessionsList({ sessions }: { sessions: Session[] }) {
+export interface RecapStats {
+  vocabNew: number;
+  vocabReviewed: number;
+  grammar: number;
+}
+
+export default function SessionsList({
+  sessions,
+  recapStats = {},
+}: {
+  sessions: Session[];
+  recapStats?: Record<string, RecapStats>;
+}) {
   const [mode, setMode] = useState<Mode>("all");
 
   const modes = useMemo(() => {
@@ -56,30 +68,47 @@ export default function SessionsList({ sessions }: { sessions: Session[] }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((s) => (
-            <Link
-              key={s.id}
-              href={`/sessions/${s.id}`}
-              className="card block hover:border-[var(--river)]"
-            >
-              <div className="flex justify-between items-center flex-wrap gap-2">
-                <div>
-                  <span className="text-sm font-medium">
-                    {s.started_at?.slice(0, 16).replace("T", " ")}
-                  </span>
-                  <span className="text-xs ml-3" style={{ color: "var(--text-dim)" }}>
-                    {s.mode} mode
-                  </span>
+          {filtered.map((s) => {
+            const recap = recapStats[s.id];
+            const hasRecap = recap && (recap.vocabNew > 0 || recap.vocabReviewed > 0 || recap.grammar > 0);
+            return (
+              <Link
+                key={s.id}
+                href={`/sessions/${s.id}`}
+                className="card block hover:border-[var(--river)]"
+              >
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                  <div>
+                    <span className="text-sm font-medium">
+                      {s.started_at?.slice(0, 16).replace("T", " ")}
+                    </span>
+                    <span className="text-xs ml-3" style={{ color: "var(--text-dim)" }}>
+                      {s.mode} mode
+                    </span>
+                  </div>
+                  <div className="flex gap-6 text-sm" style={{ color: "var(--text-dim)" }}>
+                    <span>{Math.round((s.duration_seconds ?? 0) / 60)}m</span>
+                    <span>{s.total_turns} turns</span>
+                    <span style={{ color: "var(--ember)" }}>{s.errors_detected} errors</span>
+                    <span style={{ color: "var(--moss)" }}>{s.corrections_given} corrections</span>
+                  </div>
                 </div>
-                <div className="flex gap-6 text-sm" style={{ color: "var(--text-dim)" }}>
-                  <span>{Math.round((s.duration_seconds ?? 0) / 60)}m</span>
-                  <span>{s.total_turns} turns</span>
-                  <span style={{ color: "var(--ember)" }}>{s.errors_detected} errors</span>
-                  <span style={{ color: "var(--moss)" }}>{s.corrections_given} corrections</span>
-                </div>
-              </div>
-            </Link>
-          ))}
+                {hasRecap && (
+                  <div className="flex gap-3 mt-2 text-xs" style={{ color: "var(--text-dim)" }}>
+                    {recap.vocabNew > 0 && (
+                      <span><span style={{ color: "var(--ember)" }}>{recap.vocabNew}</span> new vocab</span>
+                    )}
+                    {recap.vocabReviewed > 0 && (
+                      <span><span style={{ color: "var(--moss)" }}>{recap.vocabReviewed}</span> reviewed</span>
+                    )}
+                    {recap.grammar > 0 && (
+                      <span><span style={{ color: "var(--river)" }}>{recap.grammar}</span> grammar</span>
+                    )}
+                  </div>
+                )}
+              </Link>
+            );
+          })}
         </div>
       )}
     </>

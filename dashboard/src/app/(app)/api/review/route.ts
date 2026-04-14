@@ -1,4 +1,4 @@
-import { getLearner, upsertErrorPattern, upsertGrammar, upsertVocabulary, upsertExpression, createPhrasingSuggestion, upsertInterest, getActiveLearnerIdFromRequest } from "@/lib/db";
+import { getLearner, upsertErrorPattern, upsertGrammar, markVocabUnknown, upsertExpression, createPhrasingSuggestion, upsertInterest, getActiveLearnerIdFromRequest } from "@/lib/db";
 import { getAuthUserId } from "@/lib/auth";
 
 interface ReviewError {
@@ -357,7 +357,7 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
     // Persist unknown vocab
     for (const w of unknownWords) {
       if (w.word) {
-        await upsertVocabulary(learner.id, w.word, "unknown");
+        await markVocabUnknown(learner.id, w.word);
       }
     }
 

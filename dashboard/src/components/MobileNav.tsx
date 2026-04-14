@@ -19,18 +19,18 @@ interface SecondaryLink {
 
 const primaryLinks: PrimaryLink[] = [
   { href: "/chat", label: "Chat", icon: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" },
-  { href: "/drive", label: "Drive", icon: "M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM3 17h2 M9 17h6 M19 17h2 M5 13l1.5-5a2 2 0 0 1 1.9-1.4h7.2a2 2 0 0 1 1.9 1.4L19 13", experimental: true },
-  { href: "/listen", label: "Listen", icon: "M3 18v-6a9 9 0 0 1 18 0v6 M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" },
-  { href: "/dashboard", label: "Progress", icon: "M3 3v18h18 M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" },
+  { href: "/vocabulary", label: "Vocab", icon: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" },
+  { href: "/grammar", label: "Grammar", icon: "M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2 M9 20h6 M12 4v16" },
 ];
 
 const secondaryLinks: SecondaryLink[] = [
+  { href: "/drive", label: "Drive", experimental: true },
+  { href: "/listen", label: "Listen" },
+  { href: "/dashboard", label: "Progress" },
   { href: "/interests", label: "Interests", experimental: true },
   { href: "/errors", label: "Errors" },
-  { href: "/grammar", label: "Grammar" },
   { href: "/pronunciation", label: "Pronunciation", experimental: true },
   { href: "/knowledge", label: "Knowledge Map", experimental: true },
-  { href: "/vocabulary", label: "Vocabulary" },
   { href: "/sessions", label: "Sessions" },
   { href: "/fluency", label: "Fluency", experimental: true },
   { href: "/architecture", label: "Architecture", experimental: true },

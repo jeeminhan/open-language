@@ -1,5 +1,6 @@
 import { getSession, getSessionTurns } from "@/lib/db";
 import Link from "next/link";
+import DeleteButton from "./DeleteButton";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export default async function SessionDetailPage({
 
       {/* Session header */}
       <div className="card mb-6">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-start flex-wrap gap-3">
           <div>
             <h2 className="text-lg font-bold">
               {session.started_at?.slice(0, 16).replace("T", " ")}
@@ -45,14 +46,20 @@ export default async function SessionDetailPage({
               {session.mode} mode
             </span>
           </div>
-          <div className="flex gap-6 text-sm" style={{ color: "var(--text-dim)" }}>
+          <div className="flex gap-6 text-sm items-center" style={{ color: "var(--text-dim)" }}>
             <span>{Math.round((session.duration_seconds ?? 0) / 60)}m</span>
             <span>{session.total_turns} turns</span>
             <span style={{ color: "var(--ember)" }}>
               {session.errors_detected} errors
             </span>
+            <DeleteButton sessionId={session.id} />
           </div>
         </div>
+        {session.summary && (
+          <p className="text-sm mt-4 leading-relaxed" style={{ color: "var(--text)" }}>
+            {session.summary}
+          </p>
+        )}
       </div>
 
       {/* Transcript */}
@@ -67,6 +74,9 @@ export default async function SessionDetailPage({
             }
           }
           const errors = (analysis?.errors as Array<Record<string, string>>) || [];
+          const grammarCorrect = (analysis?.grammar_used_correctly as Array<Record<string, string>>) || [];
+          const vocabulary = (analysis?.vocabulary_used as string[]) || [];
+          const hasTutor = !!turn.tutor_response?.trim();
 
           return (
             <div key={turn.id}>
@@ -110,16 +120,46 @@ export default async function SessionDetailPage({
                 </div>
               )}
 
-              {/* Tutor response */}
-              <div className="flex gap-3 mb-1">
-                <span
-                  className="text-xs font-semibold shrink-0 mt-0.5"
-                  style={{ color: "var(--river)" }}
-                >
-                  Tutor
-                </span>
-                <p className="text-sm">{turn.tutor_response}</p>
-              </div>
+              {/* Grammar used correctly (listen mode insight) */}
+              {grammarCorrect.length > 0 && (
+                <div className="ml-10 mb-2 flex flex-wrap gap-1">
+                  {grammarCorrect.map((g, j) => (
+                    <span
+                      key={j}
+                      className="text-xs px-2 py-0.5 rounded"
+                      style={{
+                        background: "rgba(107, 154, 91, 0.12)",
+                        color: "var(--moss)",
+                        border: "1px solid rgba(107, 154, 91, 0.3)",
+                      }}
+                      title={g.example || ""}
+                    >
+                      ✓ {g.pattern}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Vocabulary used */}
+              {vocabulary.length > 0 && (
+                <div className="ml-10 mb-2 text-xs" style={{ color: "var(--text-dim)" }}>
+                  <span style={{ opacity: 0.7 }}>vocab: </span>
+                  {vocabulary.join(", ")}
+                </div>
+              )}
+
+              {/* Tutor response — only for chat mode */}
+              {hasTutor && (
+                <div className="flex gap-3 mb-1">
+                  <span
+                    className="text-xs font-semibold shrink-0 mt-0.5"
+                    style={{ color: "var(--river)" }}
+                  >
+                    Tutor
+                  </span>
+                  <p className="text-sm">{turn.tutor_response}</p>
+                </div>
+              )}
 
               {/* Correction info */}
               {turn.correction_type &&

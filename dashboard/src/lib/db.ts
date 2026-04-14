@@ -32,6 +32,7 @@ export interface Session {
   errors_detected: number;
   corrections_given: number;
   code_switches: number;
+  summary?: string | null;
 }
 
 export interface Turn {
@@ -310,20 +311,37 @@ export async function createSession(learnerId: string, mode = "text"): Promise<S
   return data as Session;
 }
 
-export async function endSession(sessionId: string): Promise<Session> {
+export async function endSession(sessionId: string, summary?: string | null): Promise<Session> {
   const { data: session } = await supabase.from("sessions").select("started_at").eq("id", sessionId).single();
   const endedAt = now();
   const durationSeconds = session?.started_at
     ? Math.round((new Date(endedAt).getTime() - new Date(session.started_at).getTime()) / 1000)
     : 0;
 
+  const update: Record<string, unknown> = { ended_at: endedAt, duration_seconds: durationSeconds };
+  if (summary != null) update.summary = summary;
+
   const { data } = await supabase
     .from("sessions")
-    .update({ ended_at: endedAt, duration_seconds: durationSeconds })
+    .update(update)
     .eq("id", sessionId)
     .select()
     .single();
   return data as Session;
+}
+
+export async function deleteSession(sessionId: string, learnerId: string): Promise<boolean> {
+  // Verify ownership before deleting
+  const { data: session } = await supabase
+    .from("sessions")
+    .select("id, learner_id")
+    .eq("id", sessionId)
+    .single();
+  if (!session || session.learner_id !== learnerId) return false;
+
+  await supabase.from("turns").delete().eq("session_id", sessionId);
+  await supabase.from("sessions").delete().eq("id", sessionId);
+  return true;
 }
 
 export async function createTurn(

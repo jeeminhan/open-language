@@ -197,7 +197,7 @@ Include one entry per utterance in "sentences" in the same order. Empty arrays a
     }
 
     await updateSessionCounters(sessionId, totalErrors, 0, 0);
-    await endSession(sessionId);
+    await endSession(sessionId, parsed.summary);
   } catch (err) {
     console.error("Failed to persist listen session:", err);
   }

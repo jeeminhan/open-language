@@ -99,9 +99,15 @@ export async function POST(req: Request) {
   const lang = learner?.target_language || "Korean";
   const native = learner?.native_language || "English";
 
+  // Voice transcription often inserts spaces between every CJK token.
+  // Collapse those spaces for CJK target languages so we don't flag transcription artifacts as spacing errors.
+  const isCJK = /^(japanese|korean|chinese|mandarin)$/i.test(lang);
+  const normalizeCJK = (s: string) =>
+    isCJK ? s.replace(/([\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af々ー])\s+(?=[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af々ー、。！？])/g, "$1") : s;
+
   const transcript = messages
     .map((m: { role: string; content: string }) =>
-      `${m.role === "user" ? "LEARNER" : "TUTOR"}: ${m.content}`
+      `${m.role === "user" ? "LEARNER" : "TUTOR"}: ${m.role === "user" ? normalizeCJK(m.content) : m.content}`
     )
     .join("\n");
 
@@ -115,9 +121,11 @@ export async function POST(req: Request) {
 
 Group your findings by pattern. If the learner makes the same type of mistake multiple times, report it ONCE as a pattern with all examples.
 
+IMPORTANT: Learner messages may come from voice transcription which can insert spurious whitespace between tokens (especially in Japanese/Chinese/Korean). DO NOT flag spacing errors that look like transcription artifacts (e.g. every word separated by a space). Only flag spacing when it's a real orthographic mistake the learner would make in writing.
+
 Check for:
-1. PARTICLES: 은/는, 이/가, 을/를, 에/에서, 으로/로, 의, 와/과
-2. SPACING: compound words, verb+noun spacing
+1. PARTICLES: 은/는, 이/가, 을/를, 에/에서, 으로/로, 의, 와/과 (Korean); は/が, を, に/で, へ, と, も (Japanese)
+2. SPACING: compound words, verb+noun spacing — ONLY if clearly not a transcription artifact
 3. CONJUGATION: tense, formality, irregular verbs
 4. WORD CHOICE: unnatural expressions, direct English translations
 5. GRAMMAR: wrong connectors, endings, honorifics
@@ -164,13 +172,17 @@ Return JSON:
 No markdown, only JSON.`, 1000),
 
     // 3. Unknown vocab detection
-    callGemini(apiKey, model, `Analyze this ${lang} conversation. Find words/phrases the LEARNER didn't understand.
+    callGemini(apiKey, model, `Analyze this ${lang} conversation. Find ${lang} words/phrases the LEARNER didn't understand. Be thorough — vocab gaps matter more than false negatives here.
 
-Look for:
-- Learner asking "뭐예요?", "뭐지요?", "무슨 뜻이에요?" etc.
-- Learner asking what a word means in English
-- Tutor explaining a word the learner clearly didn't know
-- Words the tutor used that the learner ignored or misunderstood
+Look for ALL of these signals (any one counts):
+- Learner explicitly asks what a word means (in ${lang} or ${native}) — e.g. "뭐예요?", "どういう意味?", "what does X mean?", "〜って何?"
+- Learner echoes a word back with a question mark or confusion
+- Tutor explicitly DEFINES or EXPLAINS a word/phrase (e.g. "「愛着」っていうのは…"), which implies the learner didn't know it
+- Learner asks for clarification, says they don't understand, or asks the tutor to repeat
+- Learner misuses a word in a way suggesting they didn't fully know it
+- Tutor rephrases their own prior word into simpler language after learner confusion
+
+Extract the ${lang} word/phrase itself (not the learner's question). For phrases the tutor explained, extract the phrase being explained.
 
 Conversation:
 

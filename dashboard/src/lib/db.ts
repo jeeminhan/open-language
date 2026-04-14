@@ -87,6 +87,11 @@ export interface VocabItem {
   times_used_correctly: number;
   first_used: string;
   last_used: string | null;
+  srs_state: "seen" | "learning" | "reviewing" | "known";
+  interval_days: number;
+  next_review_at: string | null;
+  review_count: number;
+  ease_factor: number;
 }
 
 export interface Expression {
@@ -474,6 +479,8 @@ export async function upsertGrammar(
   }
 }
 
+// Record that a word was used. Does NOT assert whether the learner knows it —
+// SRS state is driven by the tutor via vocab_checks, or by explicit user action.
 export async function upsertVocabulary(learnerId: string, word: string, language: string): Promise<void> {
   const n = now();
   const { data: existing } = await supabase
@@ -481,7 +488,6 @@ export async function upsertVocabulary(learnerId: string, word: string, language
     .select("*")
     .eq("learner_id", learnerId)
     .eq("word", word)
-    .eq("language", language)
     .maybeSingle();
 
   if (existing) {
@@ -492,6 +498,7 @@ export async function upsertVocabulary(learnerId: string, word: string, language
   } else {
     await supabase.from("vocabulary").insert({
       id: uid(), learner_id: learnerId, word, language, last_used: n,
+      srs_state: "seen",
     });
   }
 }
@@ -505,10 +512,17 @@ export async function markVocabUnknown(learnerId: string, word: string): Promise
     .eq("word", word)
     .maybeSingle();
 
+  const due = n;
   if (existing) {
-    await supabase.from("vocabulary").update({ language: "unknown", last_used: n }).eq("id", existing.id);
+    await supabase.from("vocabulary").update({
+      language: "unknown", last_used: n,
+      srs_state: "learning", interval_days: 0, next_review_at: due,
+    }).eq("id", existing.id);
   } else {
-    await supabase.from("vocabulary").insert({ id: uid(), learner_id: learnerId, word, language: "unknown", last_used: n });
+    await supabase.from("vocabulary").insert({
+      id: uid(), learner_id: learnerId, word, language: "unknown", last_used: n,
+      srs_state: "learning", interval_days: 0, next_review_at: due,
+    });
   }
 }
 
@@ -516,9 +530,94 @@ export async function markVocabKnown(learnerId: string, word: string): Promise<v
   const n = now();
   await supabase
     .from("vocabulary")
-    .update({ language: "target", last_used: n })
+    .update({
+      language: "target", last_used: n,
+      srs_state: "known", next_review_at: null, interval_days: 0,
+    })
     .eq("learner_id", learnerId)
     .eq("word", word);
+}
+
+// SM-2 lite: correct → extend interval; incorrect → reset to 1 day.
+// learning(0d) → reviewing(1d) → reviewing(3d) → reviewing(7d) → reviewing(21d) → known
+function nextInterval(current: number, correct: boolean): number {
+  if (!correct) return 1;
+  if (current < 1) return 1;
+  if (current < 3) return 3;
+  if (current < 7) return 7;
+  if (current < 21) return 21;
+  return 60;
+}
+
+export async function recordVocabReview(
+  learnerId: string,
+  word: string,
+  correct: boolean
+): Promise<void> {
+  const n = now();
+  const { data: existing } = await supabase
+    .from("vocabulary")
+    .select("*")
+    .eq("learner_id", learnerId)
+    .eq("word", word)
+    .maybeSingle();
+
+  if (!existing) {
+    // First time we hear of it and tutor flagged a check — treat as learning.
+    await supabase.from("vocabulary").insert({
+      id: uid(), learner_id: learnerId, word, language: correct ? "target" : "unknown",
+      last_used: n, srs_state: correct ? "reviewing" : "learning",
+      interval_days: correct ? 1 : 0, next_review_at: n, review_count: 1,
+    });
+    return;
+  }
+
+  const interval = nextInterval(existing.interval_days || 0, correct);
+  const nextReview = new Date(Date.now() + interval * 86_400_000).toISOString();
+  let srsState = existing.srs_state || "seen";
+  if (!correct) srsState = "learning";
+  else if (interval >= 60) srsState = "known";
+  else srsState = "reviewing";
+
+  await supabase
+    .from("vocabulary")
+    .update({
+      srs_state: srsState,
+      interval_days: interval,
+      next_review_at: srsState === "known" ? null : nextReview,
+      review_count: (existing.review_count || 0) + 1,
+      times_used: existing.times_used + 1,
+      times_used_correctly: existing.times_used_correctly + (correct ? 1 : 0),
+      last_used: n,
+      language: srsState === "known" ? "target" : (srsState === "learning" ? "unknown" : existing.language),
+    })
+    .eq("id", existing.id);
+}
+
+// Words the tutor should actively weave into the current session.
+// Prioritize: 1) learning (never reviewed correctly), 2) reviewing + due now.
+export async function getDueVocab(learnerId: string, limit = 8): Promise<VocabItem[]> {
+  const nowIso = now();
+  const { data } = await supabase
+    .from("vocabulary")
+    .select("*")
+    .eq("learner_id", learnerId)
+    .in("srs_state", ["learning", "reviewing"])
+    .or(`next_review_at.is.null,next_review_at.lte.${nowIso}`)
+    .order("srs_state") // 'learning' < 'reviewing' alphabetically
+    .order("next_review_at", { ascending: true, nullsFirst: true })
+    .limit(limit);
+  return (data ?? []) as VocabItem[];
+}
+
+export async function getLearningVocab(learnerId: string): Promise<VocabItem[]> {
+  const { data } = await supabase
+    .from("vocabulary")
+    .select("*")
+    .eq("learner_id", learnerId)
+    .in("srs_state", ["learning", "reviewing"])
+    .order("next_review_at", { ascending: true, nullsFirst: true });
+  return (data ?? []) as VocabItem[];
 }
 
 // ── Expressions ──

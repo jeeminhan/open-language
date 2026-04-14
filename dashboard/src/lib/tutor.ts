@@ -16,7 +16,7 @@ const SYSTEM_TEMPLATE = fs.readFileSync(
 );
 
 async function buildSystemPrompt(learner: db.Learner, sessionId: string): Promise<string> {
-  const [activeErrors, recentCorrections, weakGrammar, avoidance, effective, l1Patterns, practiceItems, interests] = await Promise.all([
+  const [activeErrors, recentCorrections, weakGrammar, avoidance, effective, l1Patterns, practiceItems, interests, dueVocab] = await Promise.all([
     db.getActiveErrors(learner.id),
     db.getRecentCorrections(sessionId),
     db.getWeakGrammar(learner.id),
@@ -25,6 +25,7 @@ async function buildSystemPrompt(learner: db.Learner, sessionId: string): Promis
     db.getL1Patterns(learner.id),
     db.getSpacedRepetitionItems(learner.id, 5),
     db.getInterests(learner.id),
+    db.getDueVocab(learner.id, 8),
   ]);
 
   const errorsText = activeErrors.length > 0
@@ -56,6 +57,10 @@ async function buildSystemPrompt(learner: db.Learner, sessionId: string): Promis
     ? practiceItems.map(p => `- ${p.description} (${p.category}, priority ${p.priority})`).join("\n")
     : "No specific focus areas yet.";
 
+  const vocabDueText = dueVocab.length > 0
+    ? dueVocab.map(v => `- ${v.word} (${v.srs_state}, reviewed ${v.review_count}x)`).join("\n")
+    : "No words in active review yet — introduce new vocab organically and probe when you suspect a gap.";
+
   const interestsText = interests.length > 0
     ? interests.slice(0, 8).map(i => `- ${i.name} (${i.category}${i.details ? `: ${i.details}` : ""})`).join("\n")
     : "No interests detected yet — ask about their hobbies and preferences!";
@@ -73,7 +78,8 @@ async function buildSystemPrompt(learner: db.Learner, sessionId: string): Promis
     .replace(/{level_note}/g, levelNote)
     .replace(/{l1_interference}/g, l1Text)
     .replace(/{practice_focus}/g, practiceText)
-    .replace(/{learner_interests}/g, interestsText);
+    .replace(/{learner_interests}/g, interestsText)
+    .replace(/{vocab_due}/g, vocabDueText);
 }
 
 interface ParsedResponse {
@@ -173,7 +179,20 @@ export async function chat(
     const vocab = (analysis.vocabulary_used as string[]) || [];
     for (const word of vocab) {
       if (typeof word === "string" && word.trim()) {
-        await db.upsertVocabulary(learner.id, word.trim().toLowerCase(), "target");
+        // Record the word as seen, but do NOT assert mastery — SRS state is driven by vocab_checks.
+        await db.upsertVocabulary(learner.id, word.trim().toLowerCase(), "seen");
+      }
+    }
+
+    const vocabChecks = (analysis.vocab_checks as Array<{ word?: string; status?: string }>) || [];
+    for (const check of vocabChecks) {
+      const word = check.word?.trim().toLowerCase();
+      if (!word) continue;
+      const status = check.status;
+      if (status === "correct" || status === "known") {
+        await db.recordVocabReview(learner.id, word, true);
+      } else if (status === "incorrect" || status === "unknown") {
+        await db.recordVocabReview(learner.id, word, false);
       }
     }
   }

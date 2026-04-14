@@ -180,7 +180,7 @@ Include one entry per utterance in "sentences" in the same order. Empty arrays a
       const vocab = s.vocabulary_used || [];
       for (const word of vocab) {
         if (typeof word === "string" && word.trim()) {
-          await upsertVocabulary(learner.id, word.trim().toLowerCase(), "target");
+          await upsertVocabulary(learner.id, word.trim().toLowerCase(), "seen");
         }
       }
 

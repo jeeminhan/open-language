@@ -25,6 +25,14 @@ L1 INTERFERENCE PATTERNS (English habits causing errors — watch for these):
 SPACED REPETITION FOCUS (steer conversation toward practicing these):
 {practice_focus}
 
+VOCABULARY TO ACTIVELY REVIEW THIS SESSION (learner is studying these — surface them, prompt them to use them, test recall naturally in-flow):
+{vocab_due}
+
+VOCABULARY RULES:
+- For each word in "VOCABULARY TO ACTIVELY REVIEW": try to create an opening in conversation where that word is the natural answer. If they use it correctly → report {{"word": "...", "status": "correct"}} in vocab_checks. If they can't recall or substitute an L1 word → {{"word": "...", "status": "incorrect"}}.
+- When the learner produces a word that seems above their level, OR you intentionally introduce a new word they likely don't know, probe gently ("do you know ~X?"). Based on their reply, report {{"word": "...", "status": "unknown"}} or "known".
+- Do NOT report vocab_checks for every word they use — only for ones you actively reviewed or probed.
+
 LEARNER'S INTERESTS (use these to make conversation engaging — they want to talk about these!):
 {learner_interests}
 
@@ -90,6 +98,9 @@ Your natural conversational reply here. This is what the learner sees/hears.
     }}
   ],
   "vocabulary_used": ["word1", "word2"],
+  "vocab_checks": [
+    {{ "word": "exact word as it appears in target language", "status": "correct|incorrect|known|unknown" }}
+  ],
   "correction_action": "none/model_naturally/recast/correct_explicitly",
   "correction_reasoning": "why you chose this correction strategy for this turn",
   "fluency_notes": "observations about hesitation, self-correction, code-switching, confidence level",

@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { INTEREST_PRESETS } from "@/lib/interestPresets";
+
+interface InterestFact {
+  fact: string;
+  source: string;
+  ts: string;
+}
 
 interface Interest {
   id: string;
@@ -10,6 +17,7 @@ interface Interest {
   source: string;
   confidence: number;
   mention_count: number;
+  facts?: InterestFact[] | null;
 }
 
 interface Topic {
@@ -38,6 +46,15 @@ export default function InterestsPage() {
   const [newCategory, setNewCategory] = useState("other");
   const [newDetails, setNewDetails] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Preset picker + expanded facts
+  const [showPresets, setShowPresets] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const existingNames = useMemo(
+    () => new Set(interests.map((i) => i.name.toLowerCase().trim())),
+    [interests]
+  );
 
   const fetchInterests = useCallback(async () => {
     try {
@@ -80,6 +97,17 @@ export default function InterestsPage() {
       await fetchInterests();
     } catch { /* */ }
     setSaving(false);
+  }
+
+  async function addPreset(name: string, category: string) {
+    try {
+      await fetch("/api/interests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, category, source: "preset", confidence: 1.0 }),
+      });
+      await fetchInterests();
+    } catch { /* */ }
   }
 
   async function removeInterest(id: string) {
@@ -127,14 +155,70 @@ export default function InterestsPage() {
             Your interests shape what your tutor talks about
           </p>
         </div>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all hover:scale-105"
-          style={{ background: "var(--moss)", color: "white" }}
-        >
-          + Add Interest
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setShowPresets(!showPresets); if (!showPresets) setShowAdd(false); }}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all hover:scale-105"
+            style={{ background: showPresets ? "var(--river)" : "var(--bg-card)", color: showPresets ? "white" : "var(--text)", border: "1px solid var(--border)" }}
+          >
+            Browse presets
+          </button>
+          <button
+            onClick={() => { setShowAdd(!showAdd); if (!showAdd) setShowPresets(false); }}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all hover:scale-105"
+            style={{ background: "var(--moss)", color: "white" }}
+          >
+            + Add Interest
+          </button>
+        </div>
       </div>
+
+      {/* Presets picker */}
+      {showPresets && (
+        <div
+          className="rounded-lg p-4 mb-6 border"
+          style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
+        >
+          <p className="text-xs mb-3" style={{ color: "var(--text-dim)" }}>
+            Tap any to add. Your tutor will start learning specifics from chats.
+          </p>
+          {Object.entries(
+            INTEREST_PRESETS.reduce<Record<string, typeof INTEREST_PRESETS>>((acc, p) => {
+              (acc[p.category] ||= []).push(p);
+              return acc;
+            }, {})
+          ).map(([cat, items]) => (
+            <div key={cat} className="mb-3 last:mb-0">
+              <div className="text-xs uppercase tracking-wider mb-1.5" style={{ color: "var(--text-dim)" }}>
+                {cat.replace("_", " ")}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {items.map((p) => {
+                  const added = existingNames.has(p.name.toLowerCase().trim());
+                  return (
+                    <button
+                      key={p.name}
+                      onClick={() => !added && addPreset(p.name, p.category)}
+                      disabled={added}
+                      title={p.hint}
+                      className="px-2.5 py-1 rounded-full text-xs border transition-all"
+                      style={{
+                        background: added ? "var(--bg)" : "var(--bg-card)",
+                        borderColor: added ? "var(--moss)" : "var(--border)",
+                        color: added ? "var(--moss)" : "var(--text)",
+                        cursor: added ? "default" : "pointer",
+                        opacity: added ? 0.7 : 1,
+                      }}
+                    >
+                      {added ? "✓ " : "+ "}{p.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Add form */}
       {showAdd && (
@@ -208,31 +292,68 @@ export default function InterestsPage() {
                   {category.replace("_", " ")}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {items.map((interest) => (
-                    <div
-                      key={interest.id}
-                      className="group flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border transition-all"
-                      style={{
-                        background: "var(--bg-card)",
-                        borderColor: "var(--border)",
-                        color: "var(--text)",
-                      }}
-                    >
-                      <span>{interest.name}</span>
-                      {interest.mention_count > 1 && (
-                        <span className="text-xs" style={{ color: "var(--text-dim)" }}>
-                          {interest.mention_count}x
-                        </span>
-                      )}
-                      <button
-                        onClick={() => removeInterest(interest.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-xs"
-                        style={{ color: "var(--ember)" }}
-                      >
-                        x
-                      </button>
-                    </div>
-                  ))}
+                  {items.map((interest) => {
+                    const factCount = interest.facts?.length ?? 0;
+                    const isOpen = expandedId === interest.id;
+                    return (
+                      <div key={interest.id} className="flex flex-col">
+                        <div
+                          className="group flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border transition-all cursor-pointer"
+                          onClick={() => setExpandedId(isOpen ? null : interest.id)}
+                          style={{
+                            background: isOpen ? "var(--bg-hover)" : "var(--bg-card)",
+                            borderColor: isOpen ? "var(--river)" : "var(--border)",
+                            color: "var(--text)",
+                          }}
+                        >
+                          <span>{interest.name}</span>
+                          {factCount > 0 && (
+                            <span className="text-xs px-1.5 rounded-full" style={{ background: "var(--bg)", color: "var(--gold)" }}>
+                              {factCount}
+                            </span>
+                          )}
+                          {interest.mention_count > 1 && (
+                            <span className="text-xs" style={{ color: "var(--text-dim)" }}>
+                              {interest.mention_count}x
+                            </span>
+                          )}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); removeInterest(interest.id); }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                            style={{ color: "var(--ember)" }}
+                          >
+                            x
+                          </button>
+                        </div>
+                        {isOpen && (
+                          <div
+                            className="mt-2 ml-2 rounded-lg p-3 border text-xs space-y-1.5 max-w-sm"
+                            style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
+                          >
+                            {interest.details && (
+                              <div style={{ color: "var(--text-dim)" }}>
+                                <span className="uppercase tracking-wider text-[10px] mr-1">notes</span>
+                                {interest.details}
+                              </div>
+                            )}
+                            {factCount > 0 ? (
+                              <ul className="space-y-1">
+                                {interest.facts!.map((f, idx) => (
+                                  <li key={idx} style={{ color: "var(--text)" }}>
+                                    <span style={{ color: "var(--gold)" }}>•</span> {f.fact}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p style={{ color: "var(--text-dim)" }}>
+                                No specifics learned yet — chat about {interest.name} and your tutor will start filling this in.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}

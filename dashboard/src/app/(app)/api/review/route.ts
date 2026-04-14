@@ -53,6 +53,7 @@ interface DetectedInterest {
   name: string;
   details: string | null;
   confidence: number;
+  facts?: string[];
 }
 
 function callGemini(apiKey: string, model: string, prompt: string, maxTokens = 2000) {
@@ -263,6 +264,7 @@ Return a JSON array:
   "category": "books|music|tv_shows|movies|anime|hobbies|sports|food|travel|work|culture|games|technology|people|news|other",
   "name": "specific name or topic",
   "details": "any specifics mentioned (e.g. 'favorite character is X', 'has been watching since 2020')",
+  "facts": ["short atomic facts the learner revealed about this interest, one per string, max ~12 words each, e.g. 'attends a Korean Presbyterian church', 'favorite album is Map of the Soul', 'mains Zelda in Smash'"],
   "confidence": 0.0-1.0 (how confident are you this is a genuine interest vs casual mention?)
 }]
 
@@ -385,13 +387,17 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
     // Persist detected interests
     for (const interest of detectedInterests) {
       if (interest.name && interest.category && (interest.confidence ?? 0) >= 0.5) {
+        const factsArr: string[] = Array.isArray((interest as { facts?: unknown }).facts)
+          ? ((interest as { facts: unknown[] }).facts.filter((f): f is string => typeof f === "string"))
+          : [];
         await upsertInterest(
           learner.id,
           interest.category,
           interest.name,
           interest.details || null,
           "detected",
-          interest.confidence ?? 0.7
+          interest.confidence ?? 0.7,
+          factsArr
         );
       }
     }

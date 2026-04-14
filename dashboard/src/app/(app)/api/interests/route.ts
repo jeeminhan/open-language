@@ -21,6 +21,9 @@ export async function POST(request: Request) {
 
   const body = await request.json();
 
+  const sanitizeFacts = (f: unknown): string[] =>
+    Array.isArray(f) ? f.filter((x): x is string => typeof x === "string") : [];
+
   // Bulk upsert from interest detection
   if (Array.isArray(body.interests)) {
     for (const i of body.interests) {
@@ -31,7 +34,8 @@ export async function POST(request: Request) {
           i.name,
           i.details || null,
           i.source || "detected",
-          i.confidence ?? 0.7
+          i.confidence ?? 0.7,
+          sanitizeFacts(i.facts)
         );
       }
     }
@@ -46,7 +50,8 @@ export async function POST(request: Request) {
       body.name,
       body.details || null,
       body.source || "manual",
-      body.confidence ?? 1.0
+      body.confidence ?? 1.0,
+      sanitizeFacts(body.facts)
     );
     return Response.json({ ok: true });
   }

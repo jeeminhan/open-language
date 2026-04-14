@@ -124,6 +124,12 @@ export interface PhrasingSuggestion {
   created_at: string;
 }
 
+export interface InterestFact {
+  fact: string;
+  source: string;
+  ts: string;
+}
+
 export interface LearnerInterest {
   id: string;
   learner_id: string;
@@ -135,6 +141,7 @@ export interface LearnerInterest {
   first_mentioned: string;
   last_mentioned: string | null;
   mention_count: number;
+  facts?: InterestFact[] | null;
 }
 
 export interface TopicCache {
@@ -1145,7 +1152,8 @@ export async function upsertInterest(
   name: string,
   details: string | null,
   source: string,
-  confidence: number
+  confidence: number,
+  newFacts?: string[]
 ): Promise<void> {
   const n = now();
   const normalizedName = name.toLowerCase().trim();
@@ -1156,7 +1164,22 @@ export async function upsertInterest(
     .ilike("name", normalizedName)
     .maybeSingle();
 
+  const incomingFacts: InterestFact[] = (newFacts ?? [])
+    .map((f) => (typeof f === "string" ? f.trim() : ""))
+    .filter((f) => f.length > 0 && f.length <= 240)
+    .map((f) => ({ fact: f, source, ts: n }));
+
   if (existing) {
+    const existingFacts: InterestFact[] = Array.isArray(existing.facts) ? existing.facts : [];
+    const seen = new Set(existingFacts.map((f) => f.fact.toLowerCase()));
+    const merged = [...existingFacts];
+    for (const f of incomingFacts) {
+      if (!seen.has(f.fact.toLowerCase())) {
+        merged.push(f);
+        seen.add(f.fact.toLowerCase());
+      }
+    }
+    const trimmed = merged.slice(-50);
     const newDetails = details && details !== existing.details
       ? [existing.details, details].filter(Boolean).join("; ")
       : existing.details;
@@ -1167,12 +1190,14 @@ export async function upsertInterest(
         last_mentioned: n,
         details: newDetails ?? existing.details,
         confidence: Math.max(existing.confidence, confidence),
+        facts: trimmed,
       })
       .eq("id", existing.id);
   } else {
     await supabase.from("learner_interests").insert({
       id: uid(), learner_id: learnerId, category, name, details,
       source, confidence, last_mentioned: n,
+      facts: incomingFacts,
     });
   }
 }

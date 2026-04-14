@@ -8,6 +8,7 @@ import {
   getWeakGrammar,
   getGrammar,
   getVocabSummary,
+  getGrammarSummary,
 } from "@/lib/db";
 import { getAuthUserId } from "@/lib/auth";
 
@@ -68,13 +69,14 @@ export default async function ProgressPage() {
     );
   }
 
-  const [stats, sessions, reviewItems, weakGrammar, allGrammar, vocabSummary] = await Promise.all([
+  const [stats, sessions, reviewItems, weakGrammar, allGrammar, vocabSummary, grammarSummary] = await Promise.all([
     getStats(learner.id),
     getSessions(learner.id, 200),
     getSpacedRepetitionItems(learner.id, 5),
     getWeakGrammar(learner.id),
     getGrammar(learner.id),
     getVocabSummary(learner.id),
+    getGrammarSummary(learner.id),
   ]);
 
   // Build week buckets
@@ -137,6 +139,19 @@ export default async function ProgressPage() {
           <VocabStat value={vocabSummary.due} label="due now" color="var(--ember)" highlight={vocabSummary.due > 0} />
           <VocabStat value={vocabSummary.learning} label="learning" color="var(--gold)" />
           <VocabStat value={vocabSummary.known} label="known" color="var(--moss)" />
+        </div>
+      </section>
+
+      {/* Grammar SRS */}
+      <section>
+        <div className="flex items-baseline justify-between mb-2">
+          <SectionLabel>Grammar</SectionLabel>
+          <Link href="/grammar" className="text-xs" style={{ color: "var(--river)" }}>see all →</Link>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <VocabStat value={grammarSummary.due} label="due now" color="var(--ember)" highlight={grammarSummary.due > 0} />
+          <VocabStat value={grammarSummary.learning} label="learning" color="var(--gold)" />
+          <VocabStat value={grammarSummary.known} label="known" color="var(--moss)" />
         </div>
       </section>
 

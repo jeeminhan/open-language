@@ -76,6 +76,10 @@ export interface GrammarItem {
   first_used: string;
   last_used: string | null;
   example_sentences: string | null;
+  srs_state: "seen" | "learning" | "reviewing" | "known";
+  interval_days: number;
+  next_review_at: string | null;
+  review_count: number;
 }
 
 export interface VocabItem {
@@ -618,6 +622,104 @@ export async function getLearningVocab(learnerId: string): Promise<VocabItem[]> 
     .in("srs_state", ["learning", "reviewing"])
     .order("next_review_at", { ascending: true, nullsFirst: true });
   return (data ?? []) as VocabItem[];
+}
+
+// ── Grammar SRS ──
+
+export async function recordGrammarReview(
+  learnerId: string,
+  pattern: string,
+  correct: boolean,
+  example: string
+): Promise<void> {
+  const n = now();
+  const { data: existing } = await supabase
+    .from("grammar_inventory")
+    .select("*")
+    .eq("learner_id", learnerId)
+    .eq("pattern", pattern)
+    .maybeSingle();
+
+  const interval = nextInterval(existing?.interval_days || 0, correct);
+  const nextReview = new Date(Date.now() + interval * 86_400_000).toISOString();
+  const srsState = !correct ? "learning" : interval >= 60 ? "known" : "reviewing";
+
+  if (!existing) {
+    await supabase.from("grammar_inventory").insert({
+      id: uid(), learner_id: learnerId, pattern, level: null,
+      correct_uses: correct ? 1 : 0, incorrect_uses: correct ? 0 : 1,
+      mastery_score: 0, first_used: n, last_used: n,
+      example_sentences: JSON.stringify([example]),
+      srs_state: srsState, interval_days: interval,
+      next_review_at: srsState === "known" ? null : nextReview,
+      review_count: 1,
+    });
+    return;
+  }
+
+  let examples: string[];
+  try { examples = JSON.parse(existing.example_sentences || "[]"); } catch { examples = []; }
+  if (example && !examples.includes(example)) {
+    examples.push(example);
+    if (examples.length > 20) examples = examples.slice(-20);
+  }
+  const correctUses = existing.correct_uses + (correct ? 1 : 0);
+  const incorrectUses = existing.incorrect_uses + (correct ? 0 : 1);
+  const total = correctUses + incorrectUses;
+  const mastery = total >= 3 ? (correctUses / total) * 100 : existing.mastery_score;
+
+  await supabase
+    .from("grammar_inventory")
+    .update({
+      correct_uses: correctUses,
+      incorrect_uses: incorrectUses,
+      mastery_score: mastery,
+      last_used: n,
+      example_sentences: JSON.stringify(examples),
+      srs_state: srsState,
+      interval_days: interval,
+      next_review_at: srsState === "known" ? null : nextReview,
+      review_count: (existing.review_count || 0) + 1,
+    })
+    .eq("id", existing.id);
+}
+
+export async function getDueGrammar(learnerId: string, limit = 5): Promise<GrammarItem[]> {
+  const nowIso = now();
+  const { data } = await supabase
+    .from("grammar_inventory")
+    .select("*")
+    .eq("learner_id", learnerId)
+    .in("srs_state", ["learning", "reviewing"])
+    .or(`next_review_at.is.null,next_review_at.lte.${nowIso}`)
+    .order("srs_state")
+    .order("next_review_at", { ascending: true, nullsFirst: true })
+    .limit(limit);
+  return (data ?? []) as GrammarItem[];
+}
+
+export async function getGrammarSummary(learnerId: string): Promise<{
+  learning: number;
+  due: number;
+  known: number;
+  total: number;
+}> {
+  const { data } = await supabase
+    .from("grammar_inventory")
+    .select("srs_state, next_review_at")
+    .eq("learner_id", learnerId);
+  const rows = data ?? [];
+  const nowMs = Date.now();
+  let learning = 0, due = 0, known = 0;
+  for (const r of rows) {
+    if (r.srs_state === "learning" || r.srs_state === "reviewing") {
+      learning++;
+      if (!r.next_review_at || new Date(r.next_review_at).getTime() <= nowMs) due++;
+    } else if (r.srs_state === "known") {
+      known++;
+    }
+  }
+  return { learning, due, known, total: rows.length };
 }
 
 // ── Expressions ──

@@ -102,11 +102,26 @@ export default async function GrammarPage() {
                     </div>
                   </div>
 
-                  {g.level && (
-                    <div className="text-xs mb-2" style={{ color: "var(--text-dim)" }}>
-                      {g.level}
-                    </div>
-                  )}
+                  <div className="flex gap-2 items-center mb-2 text-xs" style={{ color: "var(--text-dim)" }}>
+                    {g.level && <span>{g.level}</span>}
+                    {g.srs_state && g.srs_state !== "seen" && (
+                      <span
+                        className="px-1.5 py-0.5 rounded"
+                        style={{
+                          background:
+                            g.srs_state === "learning" ? "rgba(196, 94, 74, 0.15)" :
+                            g.srs_state === "reviewing" ? "rgba(230, 176, 85, 0.15)" :
+                            "rgba(107, 154, 91, 0.15)",
+                          color:
+                            g.srs_state === "learning" ? "var(--ember)" :
+                            g.srs_state === "reviewing" ? "var(--gold)" :
+                            "var(--moss)",
+                        }}
+                      >
+                        {g.srs_state}
+                      </span>
+                    )}
+                  </div>
 
                   <div className="flex gap-3 items-center text-xs mb-2" style={{ color: "var(--text-dim)" }}>
                     <span>

@@ -16,7 +16,7 @@ const SYSTEM_TEMPLATE = fs.readFileSync(
 );
 
 async function buildSystemPrompt(learner: db.Learner, sessionId: string): Promise<string> {
-  const [activeErrors, recentCorrections, weakGrammar, avoidance, effective, l1Patterns, practiceItems, interests, dueVocab] = await Promise.all([
+  const [activeErrors, recentCorrections, weakGrammar, avoidance, effective, l1Patterns, practiceItems, interests, dueVocab, dueGrammar] = await Promise.all([
     db.getActiveErrors(learner.id),
     db.getRecentCorrections(sessionId),
     db.getWeakGrammar(learner.id),
@@ -26,6 +26,7 @@ async function buildSystemPrompt(learner: db.Learner, sessionId: string): Promis
     db.getSpacedRepetitionItems(learner.id, 5),
     db.getInterests(learner.id),
     db.getDueVocab(learner.id, 8),
+    db.getDueGrammar(learner.id, 5),
   ]);
 
   const errorsText = activeErrors.length > 0
@@ -61,6 +62,10 @@ async function buildSystemPrompt(learner: db.Learner, sessionId: string): Promis
     ? dueVocab.map(v => `- ${v.word} (${v.srs_state}, reviewed ${v.review_count}x)`).join("\n")
     : "No words in active review yet — introduce new vocab organically and probe when you suspect a gap.";
 
+  const grammarDueText = dueGrammar.length > 0
+    ? dueGrammar.map(g => `- ${g.pattern} (${g.srs_state}, reviewed ${g.review_count}x)`).join("\n")
+    : "No grammar patterns in active review yet — introduce one naturally when the topic allows.";
+
   const interestsText = interests.length > 0
     ? interests.slice(0, 8).map(i => `- ${i.name} (${i.category}${i.details ? `: ${i.details}` : ""})`).join("\n")
     : "No interests detected yet — ask about their hobbies and preferences!";
@@ -79,7 +84,8 @@ async function buildSystemPrompt(learner: db.Learner, sessionId: string): Promis
     .replace(/{l1_interference}/g, l1Text)
     .replace(/{practice_focus}/g, practiceText)
     .replace(/{learner_interests}/g, interestsText)
-    .replace(/{vocab_due}/g, vocabDueText);
+    .replace(/{vocab_due}/g, vocabDueText)
+    .replace(/{grammar_due}/g, grammarDueText);
 }
 
 interface ParsedResponse {
@@ -178,6 +184,18 @@ export async function chat(
     const grammarCorrect = (analysis.grammar_used_correctly as Array<Record<string, string>>) || [];
     for (const g of grammarCorrect) {
       await db.upsertGrammar(learner.id, g.pattern || "unknown", g.level || null, true, g.example || userMessage);
+    }
+
+    const grammarChecks = (analysis.grammar_checks as Array<{ pattern?: string; status?: string; example?: string }>) || [];
+    for (const check of grammarChecks) {
+      const pattern = check.pattern?.trim();
+      if (!pattern) continue;
+      const status = check.status;
+      if (status === "correct" || status === "known") {
+        await db.recordGrammarReview(learner.id, pattern, true, check.example || userMessage);
+      } else if (status === "incorrect" || status === "unknown") {
+        await db.recordGrammarReview(learner.id, pattern, false, check.example || userMessage);
+      }
     }
 
     const vocab = (analysis.vocabulary_used as string[]) || [];

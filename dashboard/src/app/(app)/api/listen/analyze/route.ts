@@ -152,7 +152,11 @@ Include one entry per utterance in "sentences" in the same order. Empty arrays a
       const s = parsed.sentences[i];
       const userMessage = s.text || texts[i] || "";
 
-      const errors = s.errors || [];
+      const stripWs = (str: string | undefined) => (str ?? "").replace(/\s+/g, "");
+      const errors = (s.errors || []).filter((err) => {
+        if ((err.type || "").toLowerCase() === "spacing") return false;
+        return stripWs(err.observed) !== stripWs(err.expected);
+      });
       for (const err of errors) {
         await upsertErrorPattern(
           learner.id,

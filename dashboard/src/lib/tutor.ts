@@ -150,7 +150,11 @@ export async function chat(
   const correctionsCount = corrected ? 1 : 0;
 
   if (analysis) {
-    const errors = (analysis.errors as Array<Record<string, string>>) || [];
+    const stripWs = (s: string | undefined) => (s ?? "").replace(/\s+/g, "");
+    const errors = ((analysis.errors as Array<Record<string, string>>) || []).filter((err) => {
+      if ((err.type || "").toLowerCase() === "spacing") return false;
+      return stripWs(err.observed) !== stripWs(err.expected);
+    });
     for (const err of errors) {
       await db.upsertErrorPattern(
         learner.id,

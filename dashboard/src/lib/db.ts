@@ -876,6 +876,90 @@ export async function getSessionMetrics(learnerId: string, limit = 50): Promise<
   }));
 }
 
+// ── Session recap ──
+
+export interface SessionRecap {
+  sessionId: string;
+  vocabLearned: string[];   // words marked unknown/incorrect (new or failed in this session)
+  vocabReviewed: string[];  // words marked correct/known (recalled successfully)
+  grammarPracticed: string[];
+  errorCount: number;
+  topErrors: string[];      // top 3 error patterns by frequency in this session
+}
+
+export async function getSessionRecap(sessionId: string): Promise<SessionRecap> {
+  const turns = await getSessionTurns(sessionId);
+  const learned = new Set<string>();
+  const reviewed = new Set<string>();
+  const grammar = new Set<string>();
+  const errorCounts = new Map<string, number>();
+  let errorCount = 0;
+
+  for (const turn of turns) {
+    if (!turn.analysis_json) continue;
+    let analysis: Record<string, unknown>;
+    try { analysis = JSON.parse(turn.analysis_json); } catch { continue; }
+
+    const vocabChecks = (analysis.vocab_checks as Array<{ word?: string; status?: string }>) || [];
+    for (const c of vocabChecks) {
+      const w = c.word?.trim().toLowerCase();
+      if (!w) continue;
+      if (c.status === "correct" || c.status === "known") reviewed.add(w);
+      else if (c.status === "unknown" || c.status === "incorrect") learned.add(w);
+    }
+
+    const grammarCorrect = (analysis.grammar_used_correctly as Array<{ pattern?: string }>) || [];
+    for (const g of grammarCorrect) {
+      if (g.pattern?.trim()) grammar.add(g.pattern.trim());
+    }
+
+    const errors = (analysis.errors as Array<{ pattern_description?: string; type?: string }>) || [];
+    for (const e of errors) {
+      errorCount++;
+      const key = e.pattern_description?.trim() || e.type?.trim();
+      if (key) errorCounts.set(key, (errorCounts.get(key) ?? 0) + 1);
+    }
+  }
+
+  const topErrors = [...errorCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([k]) => k);
+
+  return {
+    sessionId,
+    vocabLearned: [...learned],
+    vocabReviewed: [...reviewed],
+    grammarPracticed: [...grammar],
+    errorCount,
+    topErrors,
+  };
+}
+
+export async function getVocabSummary(learnerId: string): Promise<{
+  learning: number;
+  due: number;
+  known: number;
+  total: number;
+}> {
+  const { data } = await supabase
+    .from("vocabulary")
+    .select("srs_state, next_review_at")
+    .eq("learner_id", learnerId);
+  const rows = data ?? [];
+  const nowMs = Date.now();
+  let learning = 0, due = 0, known = 0;
+  for (const r of rows) {
+    if (r.srs_state === "learning" || r.srs_state === "reviewing") {
+      learning++;
+      if (!r.next_review_at || new Date(r.next_review_at).getTime() <= nowMs) due++;
+    } else if (r.srs_state === "known") {
+      known++;
+    }
+  }
+  return { learning, due, known, total: rows.length };
+}
+
 // ── Learner Interests ──
 
 export async function getInterests(learnerId: string): Promise<LearnerInterest[]> {

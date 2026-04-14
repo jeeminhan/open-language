@@ -1,4 +1,4 @@
-import { getSession, getSessionTurns } from "@/lib/db";
+import { getSession, getSessionTurns, getSessionRecap } from "@/lib/db";
 import Link from "next/link";
 import DeleteButton from "./DeleteButton";
 
@@ -24,6 +24,12 @@ export default async function SessionDetailPage({
   }
 
   const turns = await getSessionTurns(id);
+  const recap = await getSessionRecap(id);
+  const hasRecap =
+    recap.vocabLearned.length > 0 ||
+    recap.vocabReviewed.length > 0 ||
+    recap.grammarPracticed.length > 0 ||
+    recap.topErrors.length > 0;
 
   return (
     <div>
@@ -61,6 +67,29 @@ export default async function SessionDetailPage({
           </p>
         )}
       </div>
+
+      {/* Recap */}
+      {hasRecap && (
+        <div className="card mb-6">
+          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-dim)" }}>
+            What you practiced
+          </h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {recap.vocabLearned.length > 0 && (
+              <RecapBlock label="New / needs review" color="var(--ember)" items={recap.vocabLearned} />
+            )}
+            {recap.vocabReviewed.length > 0 && (
+              <RecapBlock label="Recalled correctly" color="var(--moss)" items={recap.vocabReviewed} />
+            )}
+            {recap.grammarPracticed.length > 0 && (
+              <RecapBlock label="Grammar used" color="var(--river)" items={recap.grammarPracticed} />
+            )}
+            {recap.topErrors.length > 0 && (
+              <RecapBlock label="Top error patterns" color="var(--ember)" items={recap.topErrors} />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Transcript */}
       <div className="space-y-4">
@@ -181,6 +210,27 @@ export default async function SessionDetailPage({
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function RecapBlock({ label, color, items }: { label: string; color: string; items: string[] }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "var(--text-dim)" }}>
+        {label} · {items.length}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((w, i) => (
+          <span
+            key={i}
+            className="text-xs px-2 py-0.5 rounded"
+            style={{ background: "var(--bg-card)", color, border: `1px solid ${color}` }}
+          >
+            {w}
+          </span>
+        ))}
       </div>
     </div>
   );

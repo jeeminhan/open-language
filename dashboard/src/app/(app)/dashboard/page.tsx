@@ -7,6 +7,7 @@ import {
   getSpacedRepetitionItems,
   getWeakGrammar,
   getGrammar,
+  getVocabSummary,
 } from "@/lib/db";
 import { getAuthUserId } from "@/lib/auth";
 
@@ -67,12 +68,13 @@ export default async function ProgressPage() {
     );
   }
 
-  const [stats, sessions, reviewItems, weakGrammar, allGrammar] = await Promise.all([
+  const [stats, sessions, reviewItems, weakGrammar, allGrammar, vocabSummary] = await Promise.all([
     getStats(learner.id),
     getSessions(learner.id, 200),
     getSpacedRepetitionItems(learner.id, 5),
     getWeakGrammar(learner.id),
     getGrammar(learner.id),
+    getVocabSummary(learner.id),
   ]);
 
   // Build week buckets
@@ -124,6 +126,19 @@ export default async function ProgressPage() {
           </div>
         </div>
       </div>
+
+      {/* Vocabulary SRS */}
+      <section>
+        <div className="flex items-baseline justify-between mb-2">
+          <SectionLabel>Vocabulary</SectionLabel>
+          <Link href="/vocabulary" className="text-xs" style={{ color: "var(--river)" }}>see all →</Link>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <VocabStat value={vocabSummary.due} label="due now" color="var(--ember)" highlight={vocabSummary.due > 0} />
+          <VocabStat value={vocabSummary.learning} label="learning" color="var(--gold)" />
+          <VocabStat value={vocabSummary.known} label="known" color="var(--moss)" />
+        </div>
+      </section>
 
       {/* Today at a glance */}
       <section>
@@ -306,6 +321,21 @@ function MiniStat({ value, label }: { value: number; label: string }) {
   return (
     <div className="rounded-lg p-3 border text-center" style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}>
       <div className="text-2xl font-bold font-mono" style={{ color: "var(--text)" }}>{value}</div>
+      <div className="text-xs" style={{ color: "var(--text-dim)" }}>{label}</div>
+    </div>
+  );
+}
+
+function VocabStat({ value, label, color, highlight }: { value: number; label: string; color: string; highlight?: boolean }) {
+  return (
+    <div
+      className="rounded-lg p-3 border text-center"
+      style={{
+        background: highlight ? "rgba(196, 94, 74, 0.08)" : "var(--bg-card)",
+        borderColor: highlight ? color : "var(--border)",
+      }}
+    >
+      <div className="text-2xl font-bold font-mono" style={{ color }}>{value}</div>
       <div className="text-xs" style={{ color: "var(--text-dim)" }}>{label}</div>
     </div>
   );

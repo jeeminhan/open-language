@@ -1170,7 +1170,7 @@ export default function ChatPage() {
                   if (audio) {
                     const res = await fetch("/api/transcribe", {
                       method: "POST",
-                      body: (() => { const fd = new FormData(); fd.append("audio", new Blob([Uint8Array.from(atob(audio), c => c.charCodeAt(0))], { type: "audio/pcm;rate=16000" }), "journal.pcm"); return fd; })(),
+                      body: (() => { const fd = new FormData(); fd.append("audio", new Blob([Uint8Array.from(atob(audio), c => c.charCodeAt(0))], { type: "audio/pcm;rate=16000" }), "journal.pcm"); fd.append("language", adaptive?.targetLanguage || ""); return fd; })(),
                     });
                     const data = await res.json();
                     if (data.text) {

@@ -1,6 +1,7 @@
 export async function POST(request: Request) {
   const formData = await request.formData();
   const audioFile = formData.get("audio") as File | null;
+  const language = (formData.get("language") as string | null)?.trim() || "";
 
   if (!audioFile) {
     return Response.json({ error: "No audio file" }, { status: 400 });
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
                   },
                 },
                 {
-                  text: "Transcribe this audio exactly as spoken. Return only the transcription text, nothing else. Preserve the original language — do not translate.",
+                  text: buildTranscribePrompt(language),
                 },
               ],
             },
@@ -61,4 +62,19 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+function buildTranscribePrompt(language: string): string {
+  const lang = language.toLowerCase();
+  const base = "Transcribe this audio exactly as spoken. Return ONLY the transcription text, no commentary, no quotes, no translation.";
+  if (/japanese/.test(lang)) {
+    return `${base} The speaker is using Japanese. Use natural written Japanese orthography: proper kanji where a native writer would use them, hiragana/katakana as appropriate, full-width punctuation (、。！？). DO NOT insert spaces between words, morphemes, or particles — Japanese is written without spaces. Do not transliterate to romaji.`;
+  }
+  if (/korean/.test(lang)) {
+    return `${base} The speaker is using Korean. Use natural Hangul orthography with normal Korean word spacing (띄어쓰기) — spaces only between eojeol boundaries, not between every syllable or morpheme. Do not transliterate to romaja.`;
+  }
+  if (/chinese|mandarin/.test(lang)) {
+    return `${base} The speaker is using Chinese. Use natural Hanzi orthography with full-width punctuation. DO NOT insert spaces between characters or words — Chinese is written without spaces. Do not transliterate to pinyin.`;
+  }
+  return `${base} Preserve the original language — do not translate. Use natural orthography and word spacing for that language.`;
 }

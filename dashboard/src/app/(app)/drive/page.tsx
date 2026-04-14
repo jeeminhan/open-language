@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useVoiceChat } from "@/hooks/useVoiceChat";
 
 interface PracticeItem {
@@ -132,13 +132,89 @@ export default function DrivePage() {
     ? LANGUAGE_CODES[adaptive.targetLanguage.toLowerCase()] || "en-US"
     : "ko-KR";
 
+  const sessionIdRef = useRef<string | null>(null);
+  const turnCountRef = useRef(0);
+  const savedTurnsRef = useRef<Set<string>>(new Set());
+
   const voice = useVoiceChat({
     systemPrompt: adaptiveLoaded ? buildDrivingPrompt(adaptive) : "",
     languageCode,
     greeting: adaptive
       ? `Greet the driver briefly in ${adaptive.targetLanguage} (one short sentence), then ask what they want to practice today or suggest one focus pattern.`
       : undefined,
+    onTurnComplete: (msgs) => {
+      for (let i = msgs.length - 2; i >= 0; i--) {
+        const userMsg = msgs[i];
+        const assistantMsg = msgs[i + 1];
+        if (
+          userMsg?.role === "user" &&
+          assistantMsg?.role === "assistant" &&
+          !savedTurnsRef.current.has(userMsg.id)
+        ) {
+          savedTurnsRef.current.add(userMsg.id);
+          turnCountRef.current += 1;
+          const turnNumber = turnCountRef.current;
+          setTimeout(() => {
+            fetch("/api/voice-turn", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sessionId: sessionIdRef.current,
+                turnNumber,
+                userMessage: userMsg.content,
+                tutorResponse: assistantMsg.content,
+                mode: "drive",
+              }),
+            })
+              .then((r) => r.json())
+              .then((data) => {
+                if (data.sessionId && !sessionIdRef.current) {
+                  sessionIdRef.current = data.sessionId;
+                }
+              })
+              .catch(() => {});
+          }, 1500);
+          break;
+        }
+      }
+    },
   });
+
+  const endSession = useCallback(() => {
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    const body = JSON.stringify({ sessionId: sid });
+    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+      navigator.sendBeacon("/api/session/end", new Blob([body], { type: "application/json" }));
+    } else {
+      fetch("/api/session/end", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      }).catch(() => {});
+    }
+    sessionIdRef.current = null;
+    turnCountRef.current = 0;
+    savedTurnsRef.current = new Set();
+  }, []);
+
+  useEffect(() => {
+    const handleUnload = () => endSession();
+    window.addEventListener("beforeunload", handleUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleUnload);
+      endSession();
+    };
+  }, [endSession]);
+
+  const handleToggle = useCallback(async () => {
+    const wasActive = voice.voiceActive;
+    await voice.toggleVoice();
+    if (wasActive) {
+      // User just stopped — end and log the session
+      endSession();
+    }
+  }, [voice, endSession]);
 
   const active = voice.voiceActive;
   const connecting = voice.voiceConnecting;
@@ -172,9 +248,9 @@ export default function DrivePage() {
 
       {/* Giant status circle */}
       <button
-        onClick={voice.toggleVoice}
+        onClick={handleToggle}
         disabled={!adaptiveLoaded || connecting}
-        aria-label={active ? "Stop driving mode" : "Start driving mode"}
+        aria-label={active ? "End driving mode" : "Start driving mode"}
         className="rounded-full flex items-center justify-center transition-all"
         style={{
           width: "260px",
@@ -189,7 +265,7 @@ export default function DrivePage() {
           cursor: connecting ? "wait" : "pointer",
         }}
       >
-        {active ? "STOP" : "START"}
+        {active ? "END" : "START"}
       </button>
 
       <div

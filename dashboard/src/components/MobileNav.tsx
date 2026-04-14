@@ -6,12 +6,13 @@ import { useState } from "react";
 
 const primaryLinks = [
   { href: "/chat", label: "Chat", icon: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" },
+  { href: "/drive", label: "Drive", icon: "M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM3 17h2 M9 17h6 M19 17h2 M5 13l1.5-5a2 2 0 0 1 1.9-1.4h7.2a2 2 0 0 1 1.9 1.4L19 13" },
   { href: "/listen", label: "Listen", icon: "M3 18v-6a9 9 0 0 1 18 0v6 M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" },
-  { href: "/interests", label: "Interests", icon: "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" },
   { href: "/dashboard", label: "Progress", icon: "M3 3v18h18 M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" },
 ];
 
 const secondaryLinks = [
+  { href: "/interests", label: "Interests" },
   { href: "/errors", label: "Errors" },
   { href: "/grammar", label: "Grammar" },
   { href: "/pronunciation", label: "Pronunciation" },

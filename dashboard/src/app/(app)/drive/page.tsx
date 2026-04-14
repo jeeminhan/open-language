@@ -207,17 +207,22 @@ export default function DrivePage() {
     };
   }, [endSession]);
 
-  const handleToggle = useCallback(async () => {
-    const wasActive = voice.voiceActive;
+  const handlePauseResume = useCallback(async () => {
+    // Toggle voice connection without ending the session
     await voice.toggleVoice();
-    if (wasActive) {
-      // User just stopped — end and log the session
-      endSession();
+  }, [voice]);
+
+  const handleEnd = useCallback(async () => {
+    if (voice.voiceActive) {
+      await voice.toggleVoice();
     }
+    endSession();
   }, [voice, endSession]);
 
   const active = voice.voiceActive;
   const connecting = voice.voiceConnecting;
+  const hasSession = sessionIdRef.current !== null;
+  const paused = hasSession && !active && !connecting;
 
   const statusText = connecting
     ? "Connecting..."
@@ -225,7 +230,9 @@ export default function DrivePage() {
       ? voice.userSpeaking
         ? "Listening"
         : "Tutor is speaking"
-      : "Tap to start";
+      : paused
+        ? "Paused"
+        : "Tap to start";
 
   const statusColor = connecting
     ? "var(--text-dim)"
@@ -233,9 +240,9 @@ export default function DrivePage() {
       ? voice.userSpeaking
         ? "var(--moss)"
         : "var(--river)"
-      : "var(--gold)";
-
-  const lastMessages = voice.messages.slice(-4);
+      : paused
+        ? "var(--ember)"
+        : "var(--gold)";
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col items-center" style={{ minHeight: "70vh" }}>
@@ -246,11 +253,11 @@ export default function DrivePage() {
         Hands-free voice lesson. Eyes on the road.
       </p>
 
-      {/* Giant status circle */}
+      {/* Giant primary button — START / PAUSE / RESUME */}
       <button
-        onClick={handleToggle}
+        onClick={handlePauseResume}
         disabled={!adaptiveLoaded || connecting}
-        aria-label={active ? "End driving mode" : "Start driving mode"}
+        aria-label={active ? "Pause driving mode" : paused ? "Resume driving mode" : "Start driving mode"}
         className="rounded-full flex items-center justify-center transition-all"
         style={{
           width: "260px",
@@ -260,12 +267,12 @@ export default function DrivePage() {
           color: active ? statusColor : "var(--bg)",
           fontSize: "28px",
           fontWeight: 700,
-          marginBottom: "32px",
+          marginBottom: "24px",
           animation: active && !voice.userSpeaking ? "pulse 1.8s ease-in-out infinite" : undefined,
           cursor: connecting ? "wait" : "pointer",
         }}
       >
-        {active ? "END" : "START"}
+        {active ? "PAUSE" : paused ? "RESUME" : "START"}
       </button>
 
       <div
@@ -282,31 +289,18 @@ export default function DrivePage() {
         </div>
       )}
 
-      {/* Recent transcript — small, for post-drive review */}
-      {lastMessages.length > 0 && (
-        <div className="w-full mt-4">
-          <div className="text-xs uppercase tracking-wide mb-2" style={{ color: "var(--text-dim)" }}>
-            Recent
-          </div>
-          <div className="space-y-2">
-            {lastMessages.map((m) => (
-              <div
-                key={m.id}
-                className="rounded-lg p-3 text-sm"
-                style={{
-                  background: "var(--bg-card)",
-                  borderLeft: `3px solid ${m.role === "user" ? "var(--moss)" : "var(--river)"}`,
-                  color: "var(--text)",
-                }}
-              >
-                <div className="text-xs font-bold mb-1" style={{ color: m.role === "user" ? "var(--moss)" : "var(--river)" }}>
-                  {m.role === "user" ? "You" : "Tutor"}
-                </div>
-                {m.content}
-              </div>
-            ))}
-          </div>
-        </div>
+      {(active || paused) && (
+        <button
+          onClick={handleEnd}
+          className="px-6 py-3 rounded-lg text-sm font-semibold transition-all"
+          style={{
+            background: "transparent",
+            border: "1px solid var(--ember)",
+            color: "var(--ember)",
+          }}
+        >
+          End session
+        </button>
       )}
 
       <style>{`

@@ -171,18 +171,22 @@ Return JSON:
 
 No markdown, only JSON.`, 1000),
 
-    // 3. Unknown vocab detection
-    callGemini(apiKey, model, `Analyze this ${lang} conversation. Find ${lang} words/phrases the LEARNER didn't understand. Be thorough — vocab gaps matter more than false negatives here.
+    // 3. Unknown vocab detection — includes struggle signals, not just explicit "what does X mean"
+    callGemini(apiKey, model, `Analyze this ${lang} conversation. Find ${lang} words/phrases the LEARNER didn't know OR STRUGGLED WITH. Be generous — it's better to flag a word the learner half-knew than to miss one they needed. Vocab gaps matter more than false negatives.
 
-Look for ALL of these signals (any one counts):
+Look for ANY of these signals (any one counts):
 - Learner explicitly asks what a word means (in ${lang} or ${native}) — e.g. "뭐예요?", "どういう意味?", "what does X mean?", "〜って何?"
 - Learner echoes a word back with a question mark or confusion
-- Tutor explicitly DEFINES or EXPLAINS a word/phrase (e.g. "「愛着」っていうのは…"), which implies the learner didn't know it
+- Tutor explicitly DEFINES or EXPLAINS a word/phrase, which implies the learner didn't know it
 - Learner asks for clarification, says they don't understand, or asks the tutor to repeat
-- Learner misuses a word in a way suggesting they didn't fully know it
+- Learner MISUSES a word (wrong word choice, wrong register) — extract the CORRECT ${lang} word the tutor provided or implied
+- Learner HESITATES, self-corrects, or fumbles mid-sentence around a specific word
+- Learner falls back to ${native} for a word they couldn't produce in ${lang} — extract the ${lang} equivalent
+- Learner uses a clumsy paraphrase because they didn't know the direct word — extract the direct word
 - Tutor rephrases their own prior word into simpler language after learner confusion
+- Learner uses a word incorrectly in a way suggesting shaky grasp of its meaning/usage
 
-Extract the ${lang} word/phrase itself (not the learner's question). For phrases the tutor explained, extract the phrase being explained.
+Extract the ${lang} word/phrase itself. For struggle cases, extract the TARGET word (what the learner should have known), not the wrong version. For phrases the tutor explained, extract the phrase being explained.
 
 Conversation:
 
@@ -367,9 +371,35 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
     }
 
     // Persist unknown vocab
+    const seenVocab = new Set<string>();
     for (const w of unknownWords) {
-      if (w.word) {
+      if (w.word && !seenVocab.has(w.word)) {
+        seenVocab.add(w.word);
         await markVocabUnknown(learner.id, w.word);
+      }
+    }
+
+    // Fallback: also mark target words from word_choice / vocab / l1_transfer errors
+    // so struggled-but-not-explicitly-asked words still land in SRS.
+    const wordish = /^[\p{L}\p{M}\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af々ー' -]{1,40}$/u;
+    for (const err of errors) {
+      const t = (err.type || "").toLowerCase();
+      if (!/word|vocab|l1|expression|idiom/.test(t)) continue;
+      const target = (err.expected || "").trim();
+      if (target && wordish.test(target) && !seenVocab.has(target)) {
+        seenVocab.add(target);
+        await markVocabUnknown(learner.id, target);
+      }
+    }
+
+    // Fallback: idiom/expression/phrasing upgrades the learner didn't reach for
+    for (const ps of phrasingSuggestions) {
+      const cat = (ps.category || "").toLowerCase();
+      if (!/idiom|expression|phrasing/.test(cat)) continue;
+      const target = (ps.suggested || "").trim();
+      if (target && target.length <= 40 && !seenVocab.has(target)) {
+        seenVocab.add(target);
+        await markVocabUnknown(learner.id, target);
       }
     }
 

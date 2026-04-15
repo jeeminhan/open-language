@@ -1,0 +1,33 @@
+# Evaluation scenarios. Each scenario feeds a single user message through the
+# real LLM using the shared prompts/system.txt template and asserts the output.
+#
+# Assertion types:
+#   response_contains_any   — response text contains at least one listed string
+#   response_language       — hiragana / katakana / hangul / latin (rough heuristic)
+#   analysis_has_key        — analysis JSON is present and contains the given key
+#   analysis_errors_nonempty — analysis.errors is a non-empty list
+
+- name: responds_in_target_language
+  learner:
+    name: Alex
+    native_language: English
+    target_language: Japanese
+    proficiency_level: A2
+    correction_tolerance: moderate
+  user_message: "hi! how's your day?"
+  expect:
+    - type: response_language
+      script: hiragana_or_katakana
+
+- name: flags_obvious_grammar_error
+  learner:
+    name: Alex
+    native_language: English
+    target_language: Japanese
+    proficiency_level: A2
+    correction_tolerance: moderate
+  user_message: "昨日、映画を見ます。"  # past-tense mismatch on purpose
+  expect:
+    - type: analysis_has_key
+      key: errors
+    - type: analysis_errors_nonempty

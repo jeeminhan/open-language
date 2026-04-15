@@ -4,6 +4,7 @@ import { SourcePicker } from "./components/SourcePicker";
 import { PlayerBar } from "./components/PlayerBar";
 import { TranscriptPane } from "./components/TranscriptPane";
 import { TutorPanel, type TutorPanelHandle } from "./components/TutorPanel";
+import { RecapModal } from "./components/RecapModal";
 import { useTimedTranscript, type Segment } from "./hooks/useTimedTranscript";
 
 interface SessionMeta {
@@ -33,12 +34,31 @@ export default function AlongsidePage() {
     );
   }
 
-  return <AlongsideSession sessionId={sessionId} />;
+  return (
+    <AlongsideSession
+      sessionId={sessionId}
+      onReset={() => setSessionId(null)}
+    />
+  );
 }
 
-function AlongsideSession({ sessionId }: { sessionId: string }) {
+interface RecapState {
+  summary: string;
+  vocab: string[];
+  interactionCount: number;
+}
+
+function AlongsideSession({
+  sessionId,
+  onReset,
+}: {
+  sessionId: string;
+  onReset: () => void;
+}) {
   const [data, setData] = useState<SessionData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [recap, setRecap] = useState<RecapState | null>(null);
+  const [ending, setEnding] = useState(false);
   const tutorRef = useRef<TutorPanelHandle>(null);
 
   useEffect(() => {
@@ -60,6 +80,59 @@ function AlongsideSession({ sessionId }: { sessionId: string }) {
 
   const { audioRef, activeSegmentId, seek } = useTimedTranscript(data?.segments ?? []);
 
+  async function endSession(): Promise<void> {
+    if (ending || recap) return;
+    setEnding(true);
+    audioRef.current?.pause();
+    try {
+      const res = await fetch("/api/alongside/recap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as {
+          summary: string;
+          vocab: string[];
+          interaction_count: number;
+        };
+        setRecap({
+          summary: json.summary,
+          vocab: json.vocab,
+          interactionCount: json.interaction_count,
+        });
+      } else {
+        setRecap({
+          summary: "Session ended. Recap unavailable.",
+          vocab: [],
+          interactionCount: 0,
+        });
+      }
+    } catch {
+      setRecap({
+        summary: "Session ended. Recap unavailable.",
+        vocab: [],
+        interactionCount: 0,
+      });
+    } finally {
+      setEnding(false);
+    }
+  }
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const handleEnded = () => {
+      void endSession();
+    };
+    audio.addEventListener("ended", handleEnded);
+    return () => {
+      audio.removeEventListener("ended", handleEnded);
+    };
+    // endSession captures sessionId, ending, recap via closure — re-attach when those change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioRef.current, ending, recap]);
+
   if (loadError) return <main className="p-6 text-red-600">{loadError}</main>;
   if (!data) return <main className="p-6">Loading…</main>;
   if (!data.audio_url) {
@@ -71,30 +144,53 @@ function AlongsideSession({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-4 h-[calc(100vh-4rem)] p-4">
-      <div className="flex flex-col min-h-0">
-        <h2 className="text-lg font-medium mb-2 truncate">{data.session.title ?? "Untitled"}</h2>
-        <PlayerBar audioRef={audioRef} audioUrl={data.audio_url} />
-        <div className="flex-1 overflow-hidden mt-4 border rounded">
-          <TranscriptPane
-            segments={data.segments}
-            activeSegmentId={activeSegmentId}
-            onSeek={seek}
-            onAsk={(segment) => {
-              audioRef.current?.pause();
-              tutorRef.current?.prefill(`Explain: ${segment.text}`);
-            }}
-          />
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-4 h-[calc(100vh-4rem)] p-4">
+        <div className="flex flex-col min-h-0">
+          <h2 className="text-lg font-medium mb-2 truncate">
+            {data.session.title ?? "Untitled"}
+          </h2>
+          <div className="flex items-center gap-2">
+            <PlayerBar audioRef={audioRef} audioUrl={data.audio_url} />
+            <button
+              type="button"
+              disabled={ending || recap !== null}
+              onClick={() => void endSession()}
+              className="shrink-0 px-3 py-1 text-sm border rounded disabled:opacity-50"
+            >
+              {ending ? "Ending…" : "End session"}
+            </button>
+          </div>
+          <div className="flex-1 overflow-hidden mt-4 border rounded">
+            <TranscriptPane
+              segments={data.segments}
+              activeSegmentId={activeSegmentId}
+              onSeek={seek}
+              onAsk={(segment) => {
+                audioRef.current?.pause();
+                tutorRef.current?.prefill(`Explain: ${segment.text}`);
+              }}
+            />
+          </div>
         </div>
+        <aside className="border rounded p-2 overflow-hidden">
+          <TutorPanel
+            ref={tutorRef}
+            sessionId={sessionId}
+            getCurrentTime={() => audioRef.current?.currentTime ?? 0}
+            onPause={() => audioRef.current?.pause()}
+          />
+        </aside>
       </div>
-      <aside className="border rounded p-2 overflow-hidden">
-        <TutorPanel
-          ref={tutorRef}
-          sessionId={sessionId}
-          getCurrentTime={() => audioRef.current?.currentTime ?? 0}
-          onPause={() => audioRef.current?.pause()}
+      {recap && (
+        <RecapModal
+          summary={recap.summary}
+          vocab={recap.vocab}
+          interactionCount={recap.interactionCount}
+          onClose={() => setRecap(null)}
+          onStartAnother={onReset}
         />
-      </aside>
-    </div>
+      )}
+    </>
   );
 }

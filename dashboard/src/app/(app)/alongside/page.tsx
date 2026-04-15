@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SourcePicker } from "./components/SourcePicker";
 import { PlayerBar } from "./components/PlayerBar";
 import { TranscriptPane } from "./components/TranscriptPane";
+import { TutorPanel, type TutorPanelHandle } from "./components/TutorPanel";
 import { useTimedTranscript, type Segment } from "./hooks/useTimedTranscript";
 
 interface SessionMeta {
@@ -38,6 +39,7 @@ export default function AlongsidePage() {
 function AlongsideSession({ sessionId }: { sessionId: string }) {
   const [data, setData] = useState<SessionData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const tutorRef = useRef<TutorPanelHandle>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,14 +80,20 @@ function AlongsideSession({ sessionId }: { sessionId: string }) {
             segments={data.segments}
             activeSegmentId={activeSegmentId}
             onSeek={seek}
-            onAsk={() => {
-              /* wired in Task 6 */
+            onAsk={(segment) => {
+              audioRef.current?.pause();
+              tutorRef.current?.prefill(`Explain: ${segment.text}`);
             }}
           />
         </div>
       </div>
-      <aside className="border rounded p-2 flex items-center justify-center text-sm text-gray-500">
-        Tutor panel — coming in Task 6
+      <aside className="border rounded p-2 overflow-hidden">
+        <TutorPanel
+          ref={tutorRef}
+          sessionId={sessionId}
+          getCurrentTime={() => audioRef.current?.currentTime ?? 0}
+          onPause={() => audioRef.current?.pause()}
+        />
       </aside>
     </div>
   );

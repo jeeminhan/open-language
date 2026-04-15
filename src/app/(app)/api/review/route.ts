@@ -306,6 +306,12 @@ Be selective — only include things with confidence >= 0.5. Return [] if no cle
   const errorsParsed = await parseSettled(errorsResult, "[]");
   if (Array.isArray(errorsParsed)) errors = errorsParsed;
 
+  // For CJK target languages, drop "spacing" errors — they're almost always
+  // voice-transcription artifacts, not real orthographic mistakes.
+  if (isCJK) {
+    errors = errors.filter((e) => (e.type || "").toLowerCase() !== "spacing");
+  }
+
   const evalParsed = await parseSettled(evalResult, "{}");
   if (evalParsed && typeof evalParsed === "object") tutorEval = evalParsed as TutorEval;
 

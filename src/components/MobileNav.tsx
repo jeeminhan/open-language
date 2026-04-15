@@ -28,7 +28,7 @@ const secondaryLinks: SecondaryLink[] = [
   { href: "/listen", label: "Listen" },
   { href: "/alongside", label: "Alongside", experimental: true },
   { href: "/dashboard", label: "Progress" },
-  { href: "/interests", label: "Interests", experimental: true },
+  { href: "/interests", label: "Interests" },
   { href: "/errors", label: "Errors" },
   { href: "/pronunciation", label: "Pronunciation", experimental: true },
   { href: "/knowledge", label: "Knowledge Map", experimental: true },

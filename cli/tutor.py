@@ -71,16 +71,22 @@ def _build_system_prompt(learner: dict) -> str:
     else:
         avoidance_text = "None identified yet."
 
+    level = learner["proficiency_level"] or "A2"
     return template.format(
         learner_name=learner["name"],
         native_language=learner["native_language"],
         target_language=learner["target_language"],
-        proficiency_level=learner["proficiency_level"] or "A2",
+        level_note=f"{level} (CLI mode — no adaptive level computation)",
         correction_tolerance=learner["correction_tolerance"] or "moderate",
         active_errors=errors_text,
         recent_corrections=corrections_text,
         weak_grammar=grammar_text,
         avoidance_patterns=avoidance_text,
+        l1_interference="None identified yet.",
+        practice_focus="No specific focus areas yet.",
+        learner_interests="No interests detected yet — ask about their hobbies and preferences!",
+        vocab_due="No words in active review yet — introduce new vocab organically and probe when you suspect a gap.",
+        grammar_due="No grammar patterns in active review yet — introduce one naturally when the topic allows.",
     )
 
 

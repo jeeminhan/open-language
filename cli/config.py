@@ -23,4 +23,4 @@ MAX_CONTEXT_TURNS = int(os.getenv("MAX_CONTEXT_TURNS", "10"))
 PUSH_TO_TALK = os.getenv("PUSH_TO_TALK", "true").lower() == "true"
 DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", "3000"))
 EXPORT_DIR = BASE_DIR / "exports"
-PROMPT_TEMPLATE_PATH = BASE_DIR / "prompts" / "system.txt"
+PROMPT_TEMPLATE_PATH = BASE_DIR.parent / "prompts" / "system.txt"

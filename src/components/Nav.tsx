@@ -16,7 +16,7 @@ const links: NavLink[] = [
   { href: "/drive", label: "Drive", experimental: true },
   { href: "/listen", label: "Listen" },
   { href: "/alongside", label: "Alongside", experimental: true },
-  { href: "/interests", label: "Interests", experimental: true },
+  { href: "/interests", label: "Interests" },
   { href: "/errors", label: "Errors" },
   { href: "/grammar", label: "Grammar" },
   { href: "/pronunciation", label: "Pronunciation", experimental: true },

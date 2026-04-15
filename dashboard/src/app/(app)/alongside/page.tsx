@@ -129,9 +129,9 @@ function AlongsideSession({
     return () => {
       audio.removeEventListener("ended", handleEnded);
     };
-    // endSession captures sessionId, ending, recap via closure — re-attach when those change
+    // Depend on data?.audio_url so this re-runs after the <audio> element mounts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioRef.current, ending, recap]);
+  }, [data?.audio_url, ending, recap]);
 
   if (loadError) return <main className="p-6 text-red-600">{loadError}</main>;
   if (!data) return <main className="p-6">Loading…</main>;

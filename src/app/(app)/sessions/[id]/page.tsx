@@ -1,4 +1,6 @@
-import { getSession, getSessionTurns, getSessionRecap } from "@/lib/db";
+import { getSession, getSessionTurns, getSessionRecap, getLearner } from "@/lib/db";
+import { getAuthUserId } from "@/lib/auth";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import DeleteButton from "./DeleteButton";
 
@@ -10,9 +12,14 @@ export default async function SessionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const session = await getSession(id);
 
-  if (!session) {
+  const userId = await getAuthUserId();
+  const cookieStore = await cookies();
+  const activeLearnerId = cookieStore.get("active_learner")?.value;
+  const learner = userId ? await getLearner(activeLearnerId, userId) : undefined;
+  const session = learner ? await getSession(id) : undefined;
+
+  if (!session || session.learner_id !== learner?.id) {
     return (
       <div className="card">
         <p style={{ color: "var(--text-dim)" }}>Session not found.</p>

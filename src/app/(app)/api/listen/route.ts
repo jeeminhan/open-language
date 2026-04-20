@@ -1,10 +1,17 @@
 import { getAuthUserId } from "@/lib/auth";
+import { sanitizeForPrompt } from "@/lib/promptSafety";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rateLimit";
+import { enforceBodySize, BODY_LIMITS } from "@/lib/bodyLimit";
 
 export const maxDuration = 90;
 
 export async function POST(request: Request) {
   const userId = await getAuthUserId();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await enforceRateLimit(userId, "listen", RATE_LIMITS.expensive);
+  if (limited) return limited;
+  const tooLarge = enforceBodySize(request, BODY_LIMITS.audioJson);
+  if (tooLarge) return tooLarge;
 
   const { audio, language, mimeType } = await request.json();
   if (!audio) return Response.json({ error: "No audio provided" }, { status: 400 });
@@ -15,8 +22,9 @@ export async function POST(request: Request) {
 
   const model = process.env.LLM_MODEL || "gemini-2.5-flash";
 
-  const langHint = language
-    ? `The speakers are expected to be speaking ${language}, but transcribe whatever language they actually speak.`
+  const safeLanguage = typeof language === "string" ? sanitizeForPrompt(language, 60) : "";
+  const langHint = safeLanguage
+    ? `The speakers are expected to be speaking ${safeLanguage}, but transcribe whatever language they actually speak.`
     : "Detect the spoken language and transcribe in that language.";
 
   const prompt = `You are a professional transcriber. Listen to this audio and produce a verbatim transcript.

@@ -44,7 +44,8 @@ export default function AlongsidePage() {
 
 interface RecapState {
   summary: string;
-  vocab: string[];
+  vocabUnknown: string[];
+  vocabTranscript: string[];
   interactionCount: number;
 }
 
@@ -93,25 +94,30 @@ function AlongsideSession({
       if (res.ok) {
         const json = (await res.json()) as {
           summary: string;
-          vocab: string[];
+          vocab_unknown?: string[];
+          vocab_transcript?: string[];
+          vocab?: string[];
           interaction_count: number;
         };
         setRecap({
           summary: json.summary,
-          vocab: json.vocab,
+          vocabUnknown: json.vocab_unknown ?? json.vocab ?? [],
+          vocabTranscript: json.vocab_transcript ?? [],
           interactionCount: json.interaction_count,
         });
       } else {
         setRecap({
           summary: "Session ended. Recap unavailable.",
-          vocab: [],
+          vocabUnknown: [],
+          vocabTranscript: [],
           interactionCount: 0,
         });
       }
     } catch {
       setRecap({
         summary: "Session ended. Recap unavailable.",
-        vocab: [],
+        vocabUnknown: [],
+        vocabTranscript: [],
         interactionCount: 0,
       });
     } finally {
@@ -185,7 +191,8 @@ function AlongsideSession({
       {recap && (
         <RecapModal
           summary={recap.summary}
-          vocab={recap.vocab}
+          vocabUnknown={recap.vocabUnknown}
+          vocabTranscript={recap.vocabTranscript}
           interactionCount={recap.interactionCount}
           onClose={() => setRecap(null)}
           onStartAnother={onReset}

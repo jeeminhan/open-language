@@ -309,11 +309,14 @@ export async function createLearner(
     proficiency_level: level, correction_tolerance: tolerance,
   };
   if (userId) row.user_id = userId;
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("learners")
     .insert(row)
     .select()
     .single();
+  if (error || !data) {
+    throw new Error(`Failed to create learner: ${error?.message ?? "no row returned (likely RLS)"}`);
+  }
   return data as Learner;
 }
 
@@ -577,10 +580,14 @@ export async function recordVocabReview(
 
   if (!existing) {
     // First time we hear of it and tutor flagged a check — treat as learning.
+    const initialInterval = correct ? 1 : 0;
+    const initialNextReview = initialInterval > 0
+      ? new Date(Date.now() + initialInterval * 86_400_000).toISOString()
+      : n;
     await supabase.from("vocabulary").insert({
       id: uid(), learner_id: learnerId, word, language: correct ? "target" : "unknown",
       last_used: n, srs_state: correct ? "reviewing" : "learning",
-      interval_days: correct ? 1 : 0, next_review_at: n, review_count: 1,
+      interval_days: initialInterval, next_review_at: initialNextReview, review_count: 1,
     });
     return;
   }

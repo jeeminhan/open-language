@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { getAuthUserId } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { sanitizeForPrompt } from "@/lib/promptSafety";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rateLimit";
+import { enforceBodySize, BODY_LIMITS } from "@/lib/bodyLimit";
 
 interface Segment {
   start: number;
@@ -12,6 +15,10 @@ interface Segment {
 export async function POST(req: NextRequest): Promise<Response> {
   const userId = await getAuthUserId();
   if (!userId) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const limited = await enforceRateLimit(userId, "alongside-transcribe", RATE_LIMITS.expensive);
+  if (limited) return limited;
+  const tooLarge = enforceBodySize(req, BODY_LIMITS.textJson);
+  if (tooLarge) return tooLarge;
 
   const body = await req.json().catch(() => null) as { session_id?: string } | null;
   const sessionId = body?.session_id;
@@ -58,6 +65,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(90000),
       body: JSON.stringify({
         contents: [
           {
@@ -115,8 +123,9 @@ export async function POST(req: NextRequest): Promise<Response> {
 }
 
 function buildPrompt(language: string): string {
-  const langHint = language
-    ? `The audio is in ${language}. Use natural orthography for that language.`
+  const safeLanguage = sanitizeForPrompt(language, 60);
+  const langHint = safeLanguage
+    ? `The audio is in ${safeLanguage}. Use natural orthography for that language.`
     : "Detect the language automatically and use natural orthography.";
   return `Transcribe this audio with timestamps. Return ONLY a JSON array like:
 [{"start":0.0,"end":3.2,"text":"...","speaker":"A"}]

@@ -49,7 +49,7 @@ export class GeminiLiveClient {
   connect() {
     if (this.ws) this.disconnect();
 
-    const url = `${GEMINI_WS_BASE}?key=${this.config.token}`;
+    const url = `${GEMINI_WS_BASE}?access_token=${encodeURIComponent(this.config.token)}`;
     this.ws = new WebSocket(url);
     this.setupComplete = false;
 

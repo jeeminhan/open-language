@@ -27,11 +27,9 @@ export async function GET() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        config: {
-          uses: 1,
-          expireTime,
-          newSessionExpireTime,
-        },
+        uses: 1,
+        expireTime,
+        newSessionExpireTime,
       }),
     }
   );

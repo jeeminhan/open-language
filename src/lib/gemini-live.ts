@@ -1,6 +1,6 @@
 const GEMINI_MODEL = "gemini-3.1-flash-live-preview";
 const GEMINI_WS_BASE =
-  "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained";
+  "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";
 
 export interface GeminiLiveConfig {
   token: string;

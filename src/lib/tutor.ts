@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import * as db from "./db";
 import fs from "fs";
 import path from "path";
+import { sanitizeForPrompt } from "./promptSafety";
 
 const client = new OpenAI({
   baseURL: process.env.LLM_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -67,7 +68,12 @@ async function buildSystemPrompt(learner: db.Learner, sessionId: string): Promis
     : "No grammar patterns in active review yet — introduce one naturally when the topic allows.";
 
   const interestsText = interests.length > 0
-    ? interests.slice(0, 8).map(i => `- ${i.name} (${i.category}${i.details ? `: ${i.details}` : ""})`).join("\n")
+    ? interests.slice(0, 8).map(i => {
+        const name = sanitizeForPrompt(i.name, 120);
+        const category = sanitizeForPrompt(i.category, 60);
+        const details = i.details ? `: ${sanitizeForPrompt(i.details, 400)}` : "";
+        return `- <interest>${name} (${category}${details})</interest>`;
+      }).join("\n")
     : "No interests detected yet — ask about their hobbies and preferences!";
 
   return SYSTEM_TEMPLATE
@@ -138,11 +144,14 @@ export async function chat(
 
   let raw: string;
   try {
-    const completion = await client.chat.completions.create({
-      model: MODEL,
-      messages,
-      temperature: 0.7,
-    });
+    const completion = await client.chat.completions.create(
+      {
+        model: MODEL,
+        messages,
+        temperature: 0.7,
+      },
+      { signal: AbortSignal.timeout(45000) }
+    );
     raw = completion.choices[0].message.content || "";
   } catch (e) {
     raw = `[RESPONSE]\nSorry, I'm having trouble connecting. Error: ${e}\n[/RESPONSE]`;
@@ -253,11 +262,14 @@ Common errors: ${activeErrors.map(e => e.description).join(", ")}
 Return ONLY a JSON array of 5 topic strings. No markdown, no explanation.`;
 
   try {
-    const completion = await client.chat.completions.create({
-      model: MODEL,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-    });
+    const completion = await client.chat.completions.create(
+      {
+        model: MODEL,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
+      },
+      { signal: AbortSignal.timeout(30000) }
+    );
     const raw = (completion.choices[0].message.content || "").trim();
     const cleaned = raw.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
     return JSON.parse(cleaned);

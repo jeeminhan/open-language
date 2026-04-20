@@ -2,7 +2,8 @@
 
 interface RecapModalProps {
   summary: string;
-  vocab: string[];
+  vocabUnknown: string[];
+  vocabTranscript: string[];
   interactionCount: number;
   onStartAnother: () => void;
   onClose: () => void;
@@ -10,27 +11,43 @@ interface RecapModalProps {
 
 export function RecapModal({
   summary,
-  vocab,
+  vocabUnknown,
+  vocabTranscript,
   interactionCount,
   onStartAnother,
   onClose,
 }: RecapModalProps) {
+  const totalVocab = vocabUnknown.length + vocabTranscript.length;
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded shadow-lg max-w-lg w-full p-6 space-y-4">
+      <div className="bg-white rounded shadow-lg max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <h2 className="text-lg font-semibold">Session recap</h2>
         <p className="text-xs text-gray-500">
           {interactionCount}{" "}
           {interactionCount === 1 ? "question" : "questions"} asked
-          {vocab.length > 0 && ` · ${vocab.length} vocab saved`}
+          {totalVocab > 0 && ` · ${totalVocab} vocab saved`}
         </p>
         <div className="whitespace-pre-wrap text-sm">{summary}</div>
-        {vocab.length > 0 && (
+        {vocabUnknown.length > 0 && (
           <div>
-            <p className="text-xs font-medium text-gray-700 mb-1">New vocab</p>
+            <p className="text-xs font-medium text-gray-700 mb-1">
+              New vocab (flagged by tutor)
+            </p>
             <ul className="text-sm list-disc pl-5">
-              {vocab.map((w) => (
-                <li key={w}>{w}</li>
+              {vocabUnknown.map((w) => (
+                <li key={`u-${w}`}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {vocabTranscript.length > 0 && (
+          <div>
+            <p className="text-xs font-medium text-gray-700 mb-1">
+              From the transcript
+            </p>
+            <ul className="text-sm list-disc pl-5 grid grid-cols-2 gap-x-4">
+              {vocabTranscript.map((w) => (
+                <li key={`t-${w}`}>{w}</li>
               ))}
             </ul>
           </div>

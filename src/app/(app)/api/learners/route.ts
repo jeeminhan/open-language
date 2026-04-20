@@ -16,14 +16,18 @@ export async function POST(request: Request) {
     return Response.json({ error: "name, nativeLanguage, targetLanguage required" }, { status: 400 });
   }
 
-  const learner = await createLearner(
-    name,
-    nativeLanguage,
-    targetLanguage,
-    level || "A2",
-    tolerance || "moderate",
-    userId ?? undefined
-  );
-
-  return Response.json(learner);
+  try {
+    const learner = await createLearner(
+      name,
+      nativeLanguage,
+      targetLanguage,
+      level || "A2",
+      tolerance || "moderate",
+      userId ?? undefined
+    );
+    return Response.json(learner);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return Response.json({ error: message }, { status: 500 });
+  }
 }

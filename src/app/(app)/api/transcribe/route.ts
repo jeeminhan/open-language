@@ -1,4 +1,15 @@
+import { getAuthUserId } from "@/lib/auth";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rateLimit";
+import { enforceBodySize, BODY_LIMITS } from "@/lib/bodyLimit";
+
 export async function POST(request: Request) {
+  const userId = await getAuthUserId();
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await enforceRateLimit(userId, "transcribe", RATE_LIMITS.expensive);
+  if (limited) return limited;
+  const tooLarge = enforceBodySize(request, BODY_LIMITS.audioMultipart);
+  if (tooLarge) return tooLarge;
+
   const formData = await request.formData();
   const audioFile = formData.get("audio") as File | null;
   const language = (formData.get("language") as string | null)?.trim() || "";
@@ -26,6 +37,7 @@ export async function POST(request: Request) {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(60000),
         body: JSON.stringify({
           contents: [
             {

@@ -1,6 +1,31 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const PUBLIC_PATHS = new Set(["/", "/login", "/signup", "/onboarding"]);
+const PUBLIC_PREFIXES = [
+  "/login/",
+  "/signup/",
+  "/onboarding/",
+  "/auth/",
+  "/_next/",
+];
+
+const PUBLIC_API_PREFIXES = [
+  "/api/auth/",
+  "/api/health",
+  "/api/webhooks/",
+];
+
+function isPublicPath(path: string): boolean {
+  if (PUBLIC_PATHS.has(path)) return true;
+  if (path === "/favicon.ico") return true;
+  return PUBLIC_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+function isPublicApi(path: string): boolean {
+  return PUBLIC_API_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -30,30 +55,18 @@ export async function proxy(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  // Protected app routes
-  const isAppRoute =
-    path.startsWith("/chat") ||
-    path.startsWith("/dashboard") ||
-    path.startsWith("/errors") ||
-    path.startsWith("/grammar") ||
-    path.startsWith("/fluency") ||
-    path.startsWith("/pronunciation") ||
-    path.startsWith("/sessions") ||
-    path.startsWith("/vocabulary") ||
-    path.startsWith("/knowledge") ||
-    path.startsWith("/architecture");
+  const isApi = path.startsWith("/api/");
+  const isPublicApiRoute = isPublicApi(path);
+  const isPublic = isPublicPath(path);
 
-  // Protected API routes (except auth endpoints)
-  const isProtectedApi = path.startsWith("/api/") && !path.startsWith("/api/auth");
-
-  if (!user && isAppRoute) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", path);
-    return NextResponse.redirect(loginUrl);
+  if (!user && isApi && !isPublicApiRoute) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  if (!user && isProtectedApi) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  if (!user && !isPublic && !isApi) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", path + request.nextUrl.search);
+    return NextResponse.redirect(loginUrl);
   }
 
   // If logged in and on login page, redirect to chat

@@ -40,7 +40,7 @@ export async function GET(
       .limit(50),
     supabase
       .from("vocabulary")
-      .select("mastery_score")
+      .select("srs_state")
       .eq("learner_id", id),
   ]);
 
@@ -48,15 +48,12 @@ export async function GET(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  const vocab = vocabRes.data || [];
+  const vocab = (vocabRes.data || []) as Array<{ srs_state: string | null }>;
   const vocabStats = {
     total: vocab.length,
-    mastered: vocab.filter((v: { mastery_score: number }) => (v.mastery_score || 0) >= 0.8).length,
-    learning: vocab.filter((v: { mastery_score: number }) => {
-      const s = v.mastery_score || 0;
-      return s > 0.2 && s < 0.8;
-    }).length,
-    weak: vocab.filter((v: { mastery_score: number }) => (v.mastery_score || 0) <= 0.2).length,
+    mastered: vocab.filter((v) => v.srs_state === "known").length,
+    learning: vocab.filter((v) => v.srs_state === "learning" || v.srs_state === "reviewing").length,
+    weak: vocab.filter((v) => !v.srs_state || v.srs_state === "seen").length,
   };
 
   const errorCategoryCounts: Record<string, number> = {};

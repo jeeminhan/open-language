@@ -2,12 +2,18 @@ import { getSession, getSessionTurns, deleteSession, getLearner, getActiveLearne
 import { getAuthUserId } from "@/lib/auth";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const userId = await getAuthUserId();
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const learner = await getLearner(getActiveLearnerIdFromRequest(request), userId);
+  if (!learner) return Response.json({ error: "No learner" }, { status: 400 });
+
   const { id } = await params;
   const session = await getSession(id);
-  if (!session) {
+  if (!session || session.learner_id !== learner.id) {
     return Response.json({ error: "Session not found" }, { status: 404 });
   }
 

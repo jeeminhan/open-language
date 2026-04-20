@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 import { getAuthUserId } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import {
+  getLearner,
+  getActiveLearnerIdFromRequest,
+} from "@/lib/db";
 
 const MAX_BYTES = 100 * 1024 * 1024; // 100 MB
 
@@ -49,6 +53,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
+  const learner = await getLearner(getActiveLearnerIdFromRequest(req), userId);
+
   const { data: session, error: sessErr } = await supabase
     .from("alongside_sessions")
     .insert({
@@ -56,6 +62,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       source_type: "upload",
       audio_storage_path: storagePath,
       title: safeName,
+      target_language: learner?.target_language ?? null,
     })
     .select("id")
     .single();

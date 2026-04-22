@@ -2,15 +2,11 @@
 
 import { useState } from "react";
 
-const LANGUAGES = [
-  { code: "Korean", flag: "\ud55c", label: "Korean" },
-  { code: "Japanese", flag: "\u65e5", label: "Japanese" },
-  { code: "Chinese", flag: "\u4e2d", label: "Chinese" },
-  { code: "English", flag: "En", label: "English" },
-  { code: "Spanish", flag: "Es", label: "Spanish" },
-  { code: "French", flag: "Fr", label: "French" },
-  { code: "German", flag: "De", label: "German" },
-  { code: "Portuguese", flag: "Pt", label: "Portuguese" },
+const PAIRS = [
+  { native: "English", target: "Japanese", nativeFlag: "En", targetFlag: "日" },
+  { native: "English", target: "Korean", nativeFlag: "En", targetFlag: "한" },
+  { native: "Korean", target: "English", nativeFlag: "한", targetFlag: "En" },
+  { native: "Japanese", target: "English", nativeFlag: "日", targetFlag: "En" },
 ];
 
 const LEVELS = [
@@ -22,18 +18,19 @@ const LEVELS = [
   { value: "C2", label: "Near Native", desc: "I want to perfect my skills" },
 ];
 
-type Step = "welcome" | "native" | "target" | "level" | "name" | "creating";
+type Step = "welcome" | "pair" | "level" | "name" | "creating";
 
 export default function OnboardingPage() {
   const [step, setStep] = useState<Step>("welcome");
-  const [native, setNative] = useState<string | null>(null);
-  const [target, setTarget] = useState<string | null>(null);
+  const [pairIdx, setPairIdx] = useState<number | null>(null);
   const [level, setLevel] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
 
+  const pair = pairIdx !== null ? PAIRS[pairIdx] : null;
+
   async function createProfile() {
-    if (!name.trim() || !native || !target || !level) return;
+    if (!name.trim() || !pair || !level) return;
     setStep("creating");
     setError("");
 
@@ -43,8 +40,8 @@ export default function OnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
-          nativeLanguage: native,
-          targetLanguage: target,
+          nativeLanguage: pair.native,
+          targetLanguage: pair.target,
           level,
           tolerance: "moderate",
         }),
@@ -66,10 +63,9 @@ export default function OnboardingPage() {
 
   const stepNumber =
     step === "welcome" ? 0 :
-    step === "native" ? 1 :
-    step === "target" ? 2 :
-    step === "level" ? 3 :
-    step === "name" ? 4 : 5;
+    step === "pair" ? 1 :
+    step === "level" ? 2 :
+    step === "name" ? 3 : 4;
 
   return (
     <div
@@ -79,7 +75,7 @@ export default function OnboardingPage() {
       {/* Progress dots */}
       {step !== "welcome" && step !== "creating" && (
         <div className="fixed top-8 left-1/2 -translate-x-1/2 flex gap-2">
-          {[1, 2, 3, 4].map((n) => (
+          {[1, 2, 3].map((n) => (
             <div
               key={n}
               className="w-2 h-2 rounded-full transition-all duration-300"
@@ -110,7 +106,7 @@ export default function OnboardingPage() {
               Get real-time feedback on grammar, vocabulary, and pronunciation.
             </p>
             <button
-              onClick={() => setStep("native")}
+              onClick={() => setStep("pair")}
               className="px-8 py-3 rounded-lg text-base font-medium transition-all hover:scale-105"
               style={{
                 background: "var(--gold)",
@@ -122,8 +118,8 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Native Language */}
-        {step === "native" && (
+        {/* Pick your pair */}
+        {step === "pair" && (
           <div className="animate-in">
             <button
               onClick={() => setStep("welcome")}
@@ -133,69 +129,36 @@ export default function OnboardingPage() {
               &larr; Back
             </button>
             <h2 className="text-2xl font-bold mb-2" style={{ color: "var(--text)" }}>
-              What&apos;s your native language?
+              Pick your pair
             </h2>
             <p className="mb-6 text-sm" style={{ color: "var(--text-dim)" }}>
-              This helps us understand your learning patterns
+              Your native language and the one you&apos;re learning
             </p>
-            <div className="grid grid-cols-2 gap-3">
-              {LANGUAGES.map((lang) => (
+            <div className="grid grid-cols-1 gap-3">
+              {PAIRS.map((p, i) => (
                 <button
-                  key={lang.code}
-                  onClick={() => { setNative(lang.code); setStep("target"); }}
-                  className="flex items-center gap-3 p-4 rounded-lg border transition-all hover:scale-[1.02]"
+                  key={`${p.native}-${p.target}`}
+                  onClick={() => { setPairIdx(i); setStep("level"); }}
+                  className="flex items-center gap-4 p-4 rounded-lg border transition-all hover:scale-[1.01]"
                   style={{
-                    background: native === lang.code ? "var(--bg-hover)" : "var(--bg-card)",
-                    borderColor: native === lang.code ? "var(--gold)" : "var(--border)",
+                    background: pairIdx === i ? "var(--bg-hover)" : "var(--bg-card)",
+                    borderColor: pairIdx === i ? "var(--gold)" : "var(--border)",
                     color: "var(--text)",
                   }}
                 >
-                  <span className="text-xl w-8 h-8 rounded-md flex items-center justify-center font-bold"
+                  <span className="w-8 h-8 rounded-md flex items-center justify-center font-bold"
                     style={{ background: "var(--bg)", color: "var(--text-dim)", fontSize: "14px" }}
                   >
-                    {lang.flag}
+                    {p.nativeFlag}
                   </span>
-                  <span className="text-sm font-medium">{lang.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Target Language */}
-        {step === "target" && (
-          <div className="animate-in">
-            <button
-              onClick={() => setStep("native")}
-              className="mb-6 text-sm transition-colors"
-              style={{ color: "var(--text-dim)" }}
-            >
-              &larr; Back
-            </button>
-            <h2 className="text-2xl font-bold mb-2" style={{ color: "var(--text)" }}>
-              What language are you learning?
-            </h2>
-            <p className="mb-6 text-sm" style={{ color: "var(--text-dim)" }}>
-              Choose the language you want to practice
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {LANGUAGES.filter((l) => l.code !== native).map((lang) => (
-                <button
-                  key={lang.code}
-                  onClick={() => { setTarget(lang.code); setStep("level"); }}
-                  className="flex items-center gap-3 p-4 rounded-lg border transition-all hover:scale-[1.02]"
-                  style={{
-                    background: target === lang.code ? "var(--bg-hover)" : "var(--bg-card)",
-                    borderColor: target === lang.code ? "var(--gold)" : "var(--border)",
-                    color: "var(--text)",
-                  }}
-                >
-                  <span className="text-xl w-8 h-8 rounded-md flex items-center justify-center font-bold"
+                  <span className="text-sm font-medium">{p.native}</span>
+                  <span className="text-sm" style={{ color: "var(--text-dim)" }}>&rarr;</span>
+                  <span className="w-8 h-8 rounded-md flex items-center justify-center font-bold"
                     style={{ background: "var(--bg)", color: "var(--text-dim)", fontSize: "14px" }}
                   >
-                    {lang.flag}
+                    {p.targetFlag}
                   </span>
-                  <span className="text-sm font-medium">{lang.label}</span>
+                  <span className="text-sm font-medium">{p.target}</span>
                 </button>
               ))}
             </div>
@@ -206,14 +169,14 @@ export default function OnboardingPage() {
         {step === "level" && (
           <div className="animate-in">
             <button
-              onClick={() => setStep("target")}
+              onClick={() => setStep("pair")}
               className="mb-6 text-sm transition-colors"
               style={{ color: "var(--text-dim)" }}
             >
               &larr; Back
             </button>
             <h2 className="text-2xl font-bold mb-2" style={{ color: "var(--text)" }}>
-              How well do you speak {target}?
+              How well do you speak {pair?.target}?
             </h2>
             <p className="mb-6 text-sm" style={{ color: "var(--text-dim)" }}>
               Don&apos;t worry, we&apos;ll adapt as we learn more about you

@@ -110,6 +110,14 @@
   color: var(--text);
 }
 
+.heroNote {
+  position: relative;
+  z-index: 2;
+  margin-top: 1.5rem;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
 /* ─── Sections ─── */
 .section {
   padding: 6rem 2rem;
@@ -248,6 +256,298 @@
 .tBold { font-weight: 700; }
 .tPrompt { color: var(--moss); font-weight: 700; }
 .tTutor { color: var(--river); font-weight: 700; display: block; }
+
+/* ─── Compare cards (ChatGPT vs open-language) ─── */
+.compareGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.compareCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.75rem;
+}
+
+.compareCard[data-kind="accent"] {
+  border-color: color-mix(in srgb, var(--gold) 50%, var(--border));
+  background: color-mix(in srgb, var(--gold) 5%, var(--bg-card));
+}
+
+.compareHead {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.compareIconBad,
+.compareIconGood {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.compareIconBad {
+  background: color-mix(in srgb, var(--ember) 15%, transparent);
+  color: var(--ember);
+}
+
+.compareIconGood {
+  background: color-mix(in srgb, var(--moss) 18%, transparent);
+  color: var(--moss);
+}
+
+.compareTitle {
+  font-weight: 700;
+  font-size: 0.98rem;
+  color: var(--text);
+}
+
+.compareList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.compareList li {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  padding-left: 1.35rem;
+  position: relative;
+}
+
+.compareCard[data-kind="dim"] .compareList li::before {
+  content: "✗";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--ember);
+  opacity: 0.6;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.compareCard[data-kind="accent"] .compareList li {
+  color: var(--text);
+}
+
+.compareCard[data-kind="accent"] .compareList li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--moss);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+/* ─── Memory cards ─── */
+.memoryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.memoryCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.4rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.memoryLabel {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 0.75rem;
+}
+
+.memoryLabel[data-color="gold"] { color: var(--gold); }
+.memoryLabel[data-color="ember"] { color: var(--ember); }
+.memoryLabel[data-color="moss"] { color: var(--moss); }
+
+.memoryEntry {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 0.85rem;
+  align-items: baseline;
+}
+
+.memoryEntry:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0.3rem;
+}
+
+.memoryWord {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.memoryPron {
+  color: var(--text-dim);
+  font-weight: 400;
+  margin-left: 0.2rem;
+  font-size: 0.78rem;
+}
+
+.memoryMeaning {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.memoryCount {
+  color: var(--ember);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.memoryTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.1rem 0 0.5rem;
+}
+
+.memoryTags span {
+  padding: 0.3rem 0.75rem;
+  border-radius: 100px;
+  background: color-mix(in srgb, var(--moss) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--moss) 35%, var(--border));
+  color: var(--text);
+  font-size: 0.75rem;
+}
+
+.memoryMeta {
+  margin-top: auto;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+
+/* ─── Quiz card ─── */
+.quizCard {
+  margin: 2rem auto 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.75rem;
+  max-width: 560px;
+}
+
+.quizHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.quizBadge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--river);
+  background: color-mix(in srgb, var(--river) 15%, transparent);
+  padding: 0.3rem 0.75rem;
+  border-radius: 100px;
+}
+
+.quizMeta {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.quizQ {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.quizWord {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.quizOptions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.quizOpt {
+  padding: 0.55rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.quizOpt[data-correct="true"] {
+  border-color: color-mix(in srgb, var(--moss) 60%, var(--border));
+  background: color-mix(in srgb, var(--moss) 10%, transparent);
+  color: var(--moss);
+  font-weight: 600;
+}
+
+/* ─── Closer ─── */
+.closer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.25rem;
+}
+
+.closerNote {
+  color: var(--text-dim);
+  font-size: 0.98rem;
+  max-width: 480px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.footerLink {
+  color: var(--text-dim);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  transition: color 0.2s;
+}
+
+.footerLink:hover {
+  color: var(--gold);
+}
 
 /* ─── Mode cards ─── */
 .modeGrid {
@@ -660,7 +960,9 @@
 @media (max-width: 768px) {
   .modeGrid,
   .twoUp,
-  .journalGrid {
+  .journalGrid,
+  .compareGrid,
+  .memoryGrid {
     grid-template-columns: 1fr;
   }
 

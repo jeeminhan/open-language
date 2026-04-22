@@ -214,3 +214,4 @@ Investigated 2026-04-21. Two independent blockers:
 | Text tutor | `src/lib/tutor.ts` `chat()`, `src/app/(app)/api/chat/route.ts` |
 | Alongside (listen + transcribe) | `src/app/(app)/api/alongside/*` |
 | DB schema | `supabase-*.sql` files in repo root |
+| Guest-first / anonymous auth plan | `GUEST_FLOW.md` (not built yet) |

@@ -414,12 +414,12 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
       }
     }
 
-    // Fallback: also mark target words from word_choice / vocab / l1_transfer errors
-    // so struggled-but-not-explicitly-asked words still land in SRS.
+    // Fallback: also mark target forms from any grammar/vocab correction
+    // so the learner sees their corrections land in SRS even for particle/conjugation errors.
     const wordish = /^[\p{L}\p{M}\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af々ー' -]{1,40}$/u;
     for (const err of errors) {
       const t = (err.type || "").toLowerCase();
-      if (!/word|vocab|l1|expression|idiom/.test(t)) continue;
+      if (!/word|vocab|l1|expression|idiom|particle|conjugation|grammar|pattern|spelling|formality/.test(t)) continue;
       const target = (err.expected || "").trim();
       if (target && wordish.test(target) && !queuedForLearning.has(target)) {
         queuedForLearning.add(target);

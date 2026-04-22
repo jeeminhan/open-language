@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useVoiceChat } from "@/hooks/useVoiceChat";
 import { useJournalRecorder } from "@/hooks/useJournalRecorder";
+import { useAuthReady } from "@/hooks/useAuthReady";
 
 interface ErrorAnnotation {
   observed: string;
@@ -215,6 +216,7 @@ interface AdaptiveData {
 }
 
 export default function ChatPage() {
+  const auth = useAuthReady();
   const [chatMode, setChatMode] = useState<ChatMode>("tutor");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -226,6 +228,7 @@ export default function ChatPage() {
   const [reviewData, setReviewData] = useState<ReviewData>({ errors: [], tutorEval: null, unknownWords: [], errorClusters: [], phrasingSuggestions: [], expressions: [], queuedForLearning: [] });
   const [reviewing, setReviewing] = useState(false);
   const [reviewStage, setReviewStage] = useState("");
+  const [sessionSnapshot, setSessionSnapshot] = useState<{ totalMessages: number; totalErrors: number } | null>(null);
   const [adaptive, setAdaptive] = useState<AdaptiveData | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -233,15 +236,16 @@ export default function ChatPage() {
   const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch adaptive learning data on mount
+  // Fetch adaptive learning data once auth (real or anonymous) is ready
   useEffect(() => {
+    if (!auth.ready) return;
     fetch("/api/practice")
       .then((r) => r.json())
       .then((data) => {
         if (data.effectiveLevel) setAdaptive(data);
       })
       .catch(() => {});
-  }, []);
+  }, [auth.ready]);
 
   // Track which voice messages we've already analyzed/saved
   const analyzedVoiceRef = useRef<Set<string>>(new Set());
@@ -320,6 +324,7 @@ export default function ChatPage() {
   });
 
   useEffect(() => {
+    if (!auth.ready) return;
     fetch("/api/topics")
       .then((r) => r.json())
       .then((data) => {
@@ -327,7 +332,7 @@ export default function ChatPage() {
         else if (Array.isArray(data)) setTopics(data.map((t: string) => ({ topic: t })));
       })
       .catch(() => {});
-  }, []);
+  }, [auth.ready]);
 
   // Analyze a user message for errors in the background
   const analyzeMessage = useCallback(
@@ -577,6 +582,17 @@ export default function ChatPage() {
   }, [endActiveSession]);
 
   function endSession() {
+    // Snapshot counts BEFORE voice.reset() wipes voice.messages,
+    // so the review screen header doesn't show stale zeros.
+    const snapshotMessages = allMessages.filter((m) => m.role === "user").length;
+    const snapshotErrors = activeSessionErrors.length;
+    setSessionSnapshot({ totalMessages: snapshotMessages, totalErrors: snapshotErrors });
+
+    const reviewMessages = allMessages.map((m) => ({
+      role: m.role === "user" ? "user" : "tutor",
+      content: m.content,
+    }));
+
     endActiveSession();
     voice.reset();
     setSessionEnded(true);
@@ -584,10 +600,6 @@ export default function ChatPage() {
     // Fire the self-correction review agent with all loops
     setReviewing(true);
     setReviewStage("Scanning conversation for errors...");
-    const reviewMessages = allMessages.map((m) => ({
-      role: m.role === "user" ? "user" : "tutor",
-      content: m.content,
-    }));
 
     // Animate through stages
     const stages = chatMode === "journal" ? [
@@ -650,6 +662,7 @@ export default function ChatPage() {
     setSessionId(null);
     setTurnNumber(0);
     setSessionEnded(false);
+    setSessionSnapshot(null);
     fetch("/api/topics")
       .then((r) => r.json())
       .then((data) => {
@@ -704,8 +717,8 @@ export default function ChatPage() {
     return (
       <SessionReview
         errorsByType={errorsByType}
-        totalMessages={allMessages.filter((m) => m.role === "user").length}
-        totalErrors={activeSessionErrors.length}
+        totalMessages={sessionSnapshot?.totalMessages ?? allMessages.filter((m) => m.role === "user").length}
+        totalErrors={sessionSnapshot?.totalErrors ?? activeSessionErrors.length}
         onDismiss={dismissError}
         onNewSession={startNewSession}
         reviewData={reviewData}
@@ -1515,6 +1528,25 @@ function SessionReview({
             )}
           </div>
         </div>
+
+        {/* Empty review state — no tutorEval, no suggestions, no vocab of any kind, no clusters */}
+        {!reviewData.tutorEval
+          && reviewData.phrasingSuggestions.length === 0
+          && reviewData.expressions.length === 0
+          && reviewData.unknownWords.length === 0
+          && reviewData.queuedForLearning.length === 0
+          && reviewData.errorClusters.length === 0 && (
+          <div className="card" style={{ borderLeft: "3px solid var(--text-dim)" }}>
+            <h3 className="text-sm font-semibold mb-1" style={{ color: "var(--text-dim)" }}>
+              Not enough signal yet
+            </h3>
+            <p className="text-xs" style={{ color: "var(--text-dim)" }}>
+              The review agent didn{"'"}t find much to flag in this short session. Keep the next
+              conversation going a little longer for a fuller review — more turns surface patterns,
+              vocabulary gaps, and tutor feedback.
+            </p>
+          </div>
+        )}
 
         {/* Tutor Self-Evaluation */}
         {reviewData.tutorEval && (

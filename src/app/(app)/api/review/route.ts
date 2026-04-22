@@ -383,6 +383,10 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
     } catch { /* skip clustering */ }
   }
 
+  // Track every word we queue into SRS learning across all sources so the UI
+  // can show the learner exactly what landed in their review queue.
+  const queuedForLearning = new Set<string>();
+
   // Persist to DB
   if (learner) {
     for (const err of errors) {
@@ -402,11 +406,10 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
       }
     }
 
-    // Persist unknown vocab
-    const seenVocab = new Set<string>();
+    // Persist unknown vocab.
     for (const w of unknownWords) {
-      if (w.word && !seenVocab.has(w.word)) {
-        seenVocab.add(w.word);
+      if (w.word && !queuedForLearning.has(w.word)) {
+        queuedForLearning.add(w.word);
         await markVocabUnknown(learner.id, w.word);
       }
     }
@@ -418,8 +421,8 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
       const t = (err.type || "").toLowerCase();
       if (!/word|vocab|l1|expression|idiom/.test(t)) continue;
       const target = (err.expected || "").trim();
-      if (target && wordish.test(target) && !seenVocab.has(target)) {
-        seenVocab.add(target);
+      if (target && wordish.test(target) && !queuedForLearning.has(target)) {
+        queuedForLearning.add(target);
         await markVocabUnknown(learner.id, target);
       }
     }
@@ -429,8 +432,8 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
       const cat = (ps.category || "").toLowerCase();
       if (!/idiom|expression|phrasing/.test(cat)) continue;
       const target = (ps.suggested || "").trim();
-      if (target && target.length <= 40 && !seenVocab.has(target)) {
-        seenVocab.add(target);
+      if (target && target.length <= 40 && !queuedForLearning.has(target)) {
+        queuedForLearning.add(target);
         await markVocabUnknown(learner.id, target);
       }
     }
@@ -477,7 +480,16 @@ Only create clusters if errors are genuinely related. No markdown.`, 800);
     }
   }
 
-  return Response.json({ errors, tutorEval, unknownWords, errorClusters, phrasingSuggestions, expressions, detectedInterests });
+  return Response.json({
+    errors,
+    tutorEval,
+    unknownWords,
+    errorClusters,
+    phrasingSuggestions,
+    expressions,
+    detectedInterests,
+    queuedForLearning: Array.from(queuedForLearning),
+  });
 }
 
 function getExpressionGuidance(targetLang: string, nativeLang: string): string {

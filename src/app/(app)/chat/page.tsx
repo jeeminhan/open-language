@@ -59,6 +59,7 @@ interface ReviewData {
   errorClusters: ErrorCluster[];
   phrasingSuggestions: PhrasingSuggestionItem[];
   expressions: ExpressionItem[];
+  queuedForLearning: string[];
 }
 
 interface Message {
@@ -222,7 +223,7 @@ export default function ChatPage() {
   const [turnNumber, setTurnNumber] = useState(0);
   const [topics, setTopics] = useState<Array<{ topic: string; context?: string | null; webSnippet?: string | null; grammarTarget?: string | null; interestConnection?: string | null }>>([]);
   const [sessionEnded, setSessionEnded] = useState(false);
-  const [reviewData, setReviewData] = useState<ReviewData>({ errors: [], tutorEval: null, unknownWords: [], errorClusters: [], phrasingSuggestions: [], expressions: [] });
+  const [reviewData, setReviewData] = useState<ReviewData>({ errors: [], tutorEval: null, unknownWords: [], errorClusters: [], phrasingSuggestions: [], expressions: [], queuedForLearning: [] });
   const [reviewing, setReviewing] = useState(false);
   const [reviewStage, setReviewStage] = useState("");
   const [adaptive, setAdaptive] = useState<AdaptiveData | null>(null);
@@ -626,6 +627,7 @@ export default function ChatPage() {
           errorClusters: Array.isArray(data.errorClusters) ? data.errorClusters : [],
           phrasingSuggestions: Array.isArray(data.phrasingSuggestions) ? data.phrasingSuggestions : [],
           expressions: Array.isArray(data.expressions) ? data.expressions : [],
+          queuedForLearning: Array.isArray(data.queuedForLearning) ? data.queuedForLearning : [],
         });
       })
       .catch(() => {})
@@ -638,7 +640,7 @@ export default function ChatPage() {
   function startNewSession() {
     setMessages([]);
     setVoiceErrors({});
-    setReviewData({ errors: [], tutorEval: null, unknownWords: [], errorClusters: [], phrasingSuggestions: [], expressions: [] });
+    setReviewData({ errors: [], tutorEval: null, unknownWords: [], errorClusters: [], phrasingSuggestions: [], expressions: [], queuedForLearning: [] });
     setReviewing(false);
     setReviewStage("");
     analyzedVoiceRef.current.clear();
@@ -1506,9 +1508,9 @@ function SessionReview({
             <span style={{ color: totalErrors > 0 ? "var(--ember)" : "var(--moss)" }}>
               {totalErrors + reviewData.errors.length} errors found
             </span>
-            {reviewData.unknownWords.length > 0 && (
+            {reviewData.queuedForLearning.length > 0 && (
               <span style={{ color: "var(--gold)" }}>
-                {reviewData.unknownWords.length} new vocab
+                {reviewData.queuedForLearning.length} saved to learning
               </span>
             )}
           </div>
@@ -1705,6 +1707,41 @@ function SessionReview({
             </div>
           </div>
         )}
+
+        {/* Fallback words queued from errors / phrasings that aren't in the
+            detailed "New Vocabulary" list — shown as chips so the learner
+            sees everything that landed in the SRS review queue. */}
+        {(() => {
+          const shownWords = new Set(reviewData.unknownWords.map((w) => w.word));
+          const extra = reviewData.queuedForLearning.filter((w) => !shownWords.has(w));
+          if (extra.length === 0) return null;
+          return (
+            <div className="card" style={{ borderLeft: "3px solid var(--gold)" }}>
+              <div className="flex items-center gap-2 mb-3">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="2">
+                  <path d="M12 2v20M2 12h20" />
+                </svg>
+                <h3 className="text-sm font-semibold" style={{ color: "var(--gold)" }}>
+                  Also saved to learning
+                </h3>
+                <span className="text-xs ml-auto" style={{ color: "var(--text-dim)" }}>
+                  Pulled from your corrections and upgrades
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {extra.map((w, i) => (
+                  <span
+                    key={i}
+                    className="rounded-md px-2 py-1 text-xs"
+                    style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--gold)" }}
+                  >
+                    {w}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Vocab Picker — tap words you don't know */}
         {conversationWords.length > 0 && <VocabPicker words={conversationWords} />}

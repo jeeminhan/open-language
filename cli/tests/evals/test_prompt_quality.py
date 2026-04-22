@@ -55,6 +55,22 @@ def _check(expect: dict, response: str, analysis: dict | None) -> str | None:
         if not analysis.get("errors"):
             return "analysis.errors is empty"
         return None
+    if kind == "analysis_errors_empty":
+        if analysis is None:
+            return "analysis block missing"
+        errors = analysis.get("errors") or []
+        if errors:
+            return f"expected analysis.errors to be empty, got {errors!r}"
+        return None
+    if kind == "analysis_field_equals":
+        if analysis is None:
+            return "analysis block missing"
+        key = expect["key"]
+        expected_value = expect["value"]
+        actual_value = analysis.get(key)
+        if actual_value != expected_value:
+            return f"analysis.{key} = {actual_value!r}, expected {expected_value!r}"
+        return None
     return f"unknown check type {kind!r}"
 
 
@@ -62,6 +78,20 @@ def _log_run(scenario_name: str, payload: dict, run_dir: Path) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     out = run_dir / f"{scenario_name}.json"
     out.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+def _seed_history(history: list[dict]) -> None:
+    """Replay prior turns into tutor._conversation_history.
+
+    Assistant turns get wrapped in [RESPONSE]...[/RESPONSE] so the model sees
+    the same format its own past replies would have used.
+    """
+    for turn in history:
+        role = turn["role"]
+        content = turn["content"]
+        if role == "assistant" and "[RESPONSE]" not in content:
+            content = f"[RESPONSE]\n{content}\n[/RESPONSE]"
+        tutor._conversation_history.append({"role": role, "content": content})
 
 
 @pytest.fixture(scope="module")
@@ -82,6 +112,9 @@ def test_scenario(scenario: dict, run_dir: Path, monkeypatch) -> None:
     monkeypatch.setattr(db, "get_avoidance_patterns", lambda _id: [])
     tutor.reset_history()
 
+    history = scenario.get("history") or []
+    _seed_history(history)
+
     learner = {"id": "eval-learner", **scenario["learner"]}
     system_prompt = tutor._build_system_prompt(learner)
     result = tutor.chat(scenario["user_message"], learner)
@@ -98,6 +131,7 @@ def test_scenario(scenario: dict, run_dir: Path, monkeypatch) -> None:
             "scenario": scenario["name"],
             "model": config.LLM_MODEL,
             "timestamp": datetime.now().isoformat(),
+            "history": history,
             "user_message": scenario["user_message"],
             "system_prompt": system_prompt,
             "response": result["response"],

@@ -1,11 +1,17 @@
-# Evaluation scenarios. Each scenario feeds a single user message through the
-# real LLM using the shared prompts/system.txt template and asserts the output.
+# Evaluation scenarios. Each scenario feeds a user message through the real LLM
+# using the shared prompts/system.txt template and asserts the output.
+#
+# Optional `history`: list of prior turns replayed before the user_message.
+# Each item is {role: user|assistant, content: str}. Assistant content is
+# auto-wrapped in [RESPONSE]...[/RESPONSE] to match the live prompt format.
 #
 # Assertion types:
-#   response_contains_any   — response text contains at least one listed string
-#   response_language       — hiragana / katakana / hangul / latin (rough heuristic)
-#   analysis_has_key        — analysis JSON is present and contains the given key
+#   response_contains_any    — response text contains at least one listed string
+#   response_language        — hiragana / katakana / hangul / latin (rough heuristic)
+#   analysis_has_key         — analysis JSON is present and contains the given key
 #   analysis_errors_nonempty — analysis.errors is a non-empty list
+#   analysis_errors_empty    — analysis.errors is empty / missing
+#   analysis_field_equals    — analysis[key] equals a specific value
 
 - name: responds_in_target_language
   learner:
@@ -31,3 +37,86 @@
     - type: analysis_has_key
       key: errors
     - type: analysis_errors_nonempty
+
+- name: what_does_that_mean_triggers_explain_and_quiz
+  learner:
+    name: Alex
+    native_language: English
+    target_language: Japanese
+    proficiency_level: A2
+    correction_tolerance: moderate
+  history:
+    - role: user
+      content: "こんにちは！"
+    - role: assistant
+      content: "こんにちは、Alexさん！今日は何か面白いことありましたか？"
+  user_message: "what does 面白い mean?"
+  expect:
+    # explanation proxy: response mentions the concept of meaning or the word's sense
+    - type: response_contains_any
+      values: ["意味", "means", "meaning", "interesting", "fun", "enjoyable", "面白い"]
+    # quiz proxy: tutor asks something back
+    - type: response_contains_any
+      values: ["?", "？"]
+
+# Tests the "IGNORE SPACING/WHITESPACE DIFFS" rule in the system prompt.
+# Voice transcription inserts stray spaces between CJK characters — these are
+# ASR artifacts, not learner errors. The tutor must NOT flag them as errors.
+- name: ignores_whitespace_artifact_in_cjk
+  learner:
+    name: Alex
+    native_language: English
+    target_language: Japanese
+    proficiency_level: A2
+    correction_tolerance: moderate
+  user_message: "今日 は いい 天気 です ね"  # ASR-style extra spacing, otherwise perfect
+  expect:
+    - type: analysis_errors_empty
+
+# Tests the correction philosophy: 3rd+ occurrence of the SAME error should
+# trigger an explicit correction (not another silent recast). History seeds
+# two prior occurrences of the present-for-past-tense mistake.
+- name: corrects_explicitly_after_repeated_error
+  learner:
+    name: Alex
+    native_language: English
+    target_language: Japanese
+    proficiency_level: A2
+    correction_tolerance: moderate
+  history:
+    - role: user
+      content: "昨日、公園に行きます。"  # occurrence 1: wrong tense
+    - role: assistant
+      content: "へえ、昨日は公園に行きましたか！何をしましたか？"  # silent recast
+    - role: user
+      content: "友達と走ります。"  # occurrence 2: same mistake
+    - role: assistant
+      content: "友達と走ったんですね、楽しそう！その後は何をしましたか？"  # another recast
+  user_message: "それから、アイスを食べます。"  # occurrence 3: same mistake again
+  expect:
+    - type: analysis_field_equals
+      key: correction_action
+      value: correct_explicitly
+
+# Tests the positive-reinforcement rule: when the learner correctly uses a
+# pattern they previously got wrong, the tutor should acknowledge it briefly.
+- name: acknowledges_recovery_on_previously_wrong_pattern
+  learner:
+    name: Alex
+    native_language: English
+    target_language: Japanese
+    proficiency_level: A2
+    correction_tolerance: moderate
+  history:
+    - role: user
+      content: "昨日、映画を見ます。"  # past-tense mistake
+    - role: assistant
+      content: "そうですか！昨日は映画を見ましたか。どんな映画でしたか？"  # recast
+    - role: user
+      content: "アクション映画です。"
+    - role: assistant
+      content: "アクション映画、いいですね！他にも何かしましたか？"
+  user_message: "友達とご飯を食べました。"  # correct past tense this time
+  expect:
+    - type: response_contains_any
+      values: ["いい", "正解", "ぴったり", "nice", "good", "great", "ok", "いいね", "そう", "Nice"]

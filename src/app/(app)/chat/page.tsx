@@ -71,17 +71,14 @@ interface Message {
 
 type ChatMode = "tutor" | "journal";
 
-function buildJournalPrompt(adaptive?: AdaptiveData | null): string {
-  const target = adaptive?.targetLanguage || "Korean";
-  const native = adaptive?.nativeLanguage || "English";
+function buildJournalPrompt(adaptive: AdaptiveData): string {
+  const target = adaptive.targetLanguage;
+  const native = adaptive.nativeLanguage || "English";
 
-  let levelNote = "A2";
-  if (adaptive) {
-    const eff = adaptive.effectiveLevel;
-    levelNote = eff.confidence > 0.3
-      ? `${eff.level} (${Math.round(eff.grammarMastery)}% grammar mastery)`
-      : `${adaptive.registeredLevel} (registered)`;
-  }
+  const eff = adaptive.effectiveLevel;
+  const levelNote = eff.confidence > 0.3
+    ? `${eff.level} (${Math.round(eff.grammarMastery)}% grammar mastery)`
+    : `${adaptive.registeredLevel} (registered)`;
 
   let prompt = `You are a silent journal companion for a ${target} language learner. The learner is speaking their thoughts aloud as a voice journal entry in ${target}.
 
@@ -104,100 +101,65 @@ The learner's level: ${levelNote}`;
   return prompt;
 }
 
-function buildVoicePrompt(adaptive?: AdaptiveData | null): string {
-  let levelNote = "A2";
-  let focusAreas = "";
-  let l1Note = "";
+// Compact voice prompt — targets ~400 tokens.
+// Full grading/correction happens async in /api/voice-turn on cheap text tokens.
+// The voice model just needs to sound natural, nudge toward focus areas, and keep them talking.
+function buildVoicePrompt(adaptive: AdaptiveData): string {
+  const eff = adaptive.effectiveLevel;
+  const level = eff.confidence > 0.3 ? eff.level : adaptive.registeredLevel;
+  const target = adaptive.targetLanguage;
+  const native = adaptive.nativeLanguage || "English";
 
-  if (adaptive) {
-    const eff = adaptive.effectiveLevel;
-    if (eff.confidence > 0.3) {
-      levelNote = `${eff.level} (computed from ${eff.totalDataPoints} data points, ${Math.round(eff.grammarMastery)}% grammar mastery, ${Math.round(eff.errorRate)}% error rate)`;
-    } else {
-      levelNote = `${adaptive.registeredLevel} (not enough data yet to adapt)`;
-    }
+  const focusAreas = adaptive.practiceItems.slice(0, 3).map((p) => `- ${p.description}`).join("\n");
+  const l1Lines = adaptive.l1Patterns.slice(0, 3).map((p) => `- ${p.description}`).join("\n");
+  const interestLine = (adaptive.interests || [])
+    .slice(0, 3)
+    .map((i) => i.name)
+    .filter(Boolean)
+    .join(", ");
 
-    if (adaptive.practiceItems.length > 0) {
-      focusAreas = `\n\nFOCUS AREAS (from spaced repetition — steer conversation toward these):\n${adaptive.practiceItems.map((p: PracticeItem) => `- ${p.description} (${p.category}, seen ${p.occurrence_count}x)`).join("\n")}`;
-    }
+  const lines: string[] = [
+    `You are a friendly ${target} tutor in a real-time voice conversation.`,
+    ``,
+    `LANGUAGE`,
+    `- The learner is speaking ${target}. Always interpret their audio as ${target}, even with imperfect pronunciation.`,
+    `- Reply in ${target}. Drop into ${native} only when they're clearly stuck.`,
+    ``,
+    `LEARNER`,
+    `- Native: ${native}`,
+    `- Level: ${level}`,
+  ];
 
-    if (adaptive.l1Patterns.length > 0) {
-      l1Note = `\n\nKNOWN L1 INTERFERENCE (English habits causing errors):\n${adaptive.l1Patterns.map((p: L1Pattern) => `- ${p.description}: ${p.l1_source}`).join("\n")}`;
-    }
+  if (interestLine) lines.push(`- Enjoys: ${interestLine}`);
+
+  lines.push(
+    ``,
+    `STYLE`,
+    `- Reply in 1–2 short sentences. Never lecture.`,
+    `- End with a question to keep them talking.`,
+    `- Recast errors (repeat them correctly) rather than explaining.`,
+    `- React warmly to what they said before correcting.`,
+  );
+
+  if (focusAreas) {
+    lines.push(``, `FOCUS AREAS (steer toward these):`, focusAreas);
+  }
+  if (l1Lines) {
+    lines.push(``, `KNOWN ${native.toUpperCase()} INTERFERENCE:`, l1Lines);
   }
 
-  const target = adaptive?.targetLanguage || "Korean";
-  const native = adaptive?.nativeLanguage || "English";
-
-  let prompt = `You are a friendly ${target} language tutor having a real-time voice conversation.
-
-CRITICAL LANGUAGE RULES:
-- The learner is speaking ${target}. ALL their speech is in ${target}.
-- You MUST respond ONLY in ${target} (with occasional ${native} explanations when they struggle).
-- When you hear the learner speak, interpret their audio as ${target} — never as Korean, Chinese, or any other language.
-- Even if the pronunciation is imperfect, the learner is attempting ${target}.
-
-The learner's native language: ${native}
-The learner's effective level: ${levelNote}
-
-Your role:
-- Have natural conversations in ${target}
-- Gently correct errors using recasts (repeating what they said correctly)
-- ADAPT your complexity to their computed level — if they're improving, push slightly harder vocabulary and grammar
-- Be encouraging and conversational
-- Mix in ${native} when they struggle
-- Keep responses concise since this is a spoken conversation${focusAreas}${l1Note}
-
-Style:
-- Speak naturally, like a patient friend
-- Use short sentences appropriate for conversation
-- Pause between ideas
-- React to what they say before correcting
-- If focus areas are listed above, naturally steer topics to practice those patterns`;
-
-  if (adaptive?.interests && adaptive.interests.length > 0) {
-    const interestLines = adaptive.interests.slice(0, 6).map(
-      (i) => `- ${i.name} (${i.category}${i.details ? `: ${i.details}` : ""})`
-    );
-    prompt += `\n\nLEARNER'S INTERESTS (talk about these — they enjoy them!):\n${interestLines.join("\n")}
-\nUse their interests to make conversation engaging. Reference specific things they like. Ask follow-up questions about their interests. This makes them WANT to talk more.`;
-  }
-
-  // Idiom teaching for English learners
+  // English-specific nudge — collapsed from the old idiom + slang teaching blocks.
+  // Detailed idiom/slang teaching happens on the text side via /api/chat.
   if (target.toLowerCase() === "english") {
-    prompt += `\n\nIDIOM TEACHING:
-- Naturally weave 1-2 English idioms into each conversation turn
-- When you use an idiom, briefly explain what it means in context
-- Use idioms that fit the topic — don't force random ones in
-- Start with common idioms (a piece of cake, break the ice, hit the nail on the head) then progress to more advanced ones as the learner improves
-- When the learner successfully uses an idiom, praise it specifically
-- If the learner translates a ${native} idiom literally into English, acknowledge the attempt and teach the English equivalent`;
-
-    if (native.toLowerCase() === "korean") {
-      prompt += `\n- Korean learners especially love idioms and 4-character expressions. Bridge with Korean equivalents when one exists:
-  - 식은 죽 먹기 → "a piece of cake"
-  - 눈이 높다 → "to have high standards" (not "eyes are high")
-  - 발이 넓다 → "to be well-connected" (not "feet are wide")
-  - 비행기를 태우다 → "to butter someone up" (not "to put someone on a plane")
-- Watch for direct Korean-to-English idiom translations — these are great teaching moments
-- Introduce phrasal verbs gradually — they're a major stumbling block for Korean speakers`;
-    }
-
-    prompt += `\n\nSLANG TEACHING:
-- Naturally drop 1-2 pieces of current, conversational English slang per turn when it fits the register
-- Briefly gloss what it means and when it's appropriate (casual only, among friends, internet-native, etc.)
-- Favor slang that's actually in use (lowkey, no cap, it's giving, vibe, slay, mid, bet, sus, hits different, living rent-free, the ick) over dated slang
-- Flag register — make clear what's fine with friends vs. inappropriate in class, interviews, or formal writing
-- If the learner uses slang correctly, praise it; if they misuse it or use something dated/cringe, gently update them
-- Don't overdo it — slang should feel natural, not performative`;
-
-    if (native.toLowerCase() === "korean") {
-      prompt += `\n- Bridge with Korean internet/youth slang when there's a rough equivalent (e.g. 찐 ≈ "for real", 인정 ≈ "facts", 킹받네 ≈ "that's annoying af", 갓생 ≈ "living your best life")
-- Korean learners often pick up slang from US shows/TikTok — confirm or correct what they've absorbed`;
-    }
+    lines.push(
+      ``,
+      `ENGLISH NUANCE`,
+      `- When it fits, use ONE natural idiom or current slang per turn; gloss it briefly only if needed.`,
+      `- Gently correct literal ${native}-to-English translations with the idiomatic form.`,
+    );
   }
 
-  return prompt;
+  return lines.join("\n");
 }
 
 interface PracticeItem {
@@ -289,7 +251,7 @@ export default function ChatPage() {
   const journal = useJournalRecorder();
 
   const voice = useVoiceChat({
-    systemPrompt: buildVoicePrompt(adaptive),
+    systemPrompt: adaptive ? buildVoicePrompt(adaptive) : "",
     languageCode: getLanguageCode(adaptive?.targetLanguage),
     greeting: "Start the conversation. Greet the learner warmly and suggest a topic to talk about.",
     onTurnComplete: (msgs) => {
@@ -341,6 +303,18 @@ export default function ChatPage() {
           break;
         }
       }
+    },
+    onAutoDisconnect: (reason) => {
+      const msg =
+        reason === "idle"
+          ? "Paused after 30s of silence — tap mic to resume."
+          : "10 min session limit reached — tap mic to continue.";
+      setVoiceNotice(msg);
+      setTimeout(() => setVoiceNotice(null), 6000);
+    },
+    onError: (err) => {
+      setVoiceNotice(err.message || "Voice session failed to start.");
+      setTimeout(() => setVoiceNotice(null), 6000);
     },
   });
 
@@ -422,6 +396,9 @@ export default function ChatPage() {
   const [voiceErrors, setVoiceErrors] = useState<
     Record<number, ErrorAnnotation[]>
   >({});
+
+  // Transient notice shown when voice session auto-closes (idle or 10-min cap).
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
 
   // Analyze voice user messages as they finalize
   useEffect(() => {
@@ -1157,6 +1134,8 @@ export default function ChatPage() {
           active={chatMode === "journal" ? journal.recording : voice.voiceActive}
           connecting={chatMode === "journal" ? false : voice.voiceConnecting}
           speaking={chatMode === "journal" ? journal.recording : voice.userSpeaking}
+          disabled={!adaptive?.targetLanguage}
+          disabledReason={!adaptive ? "Loading learner profile..." : "No target language set on this learner"}
           onClick={chatMode === "journal"
             ? async () => {
                 if (journal.recording) {
@@ -1249,6 +1228,19 @@ export default function ChatPage() {
           </button>
         )}
       </div>
+
+      {voiceNotice && !voice.voiceActive && !voice.voiceConnecting && (
+        <div
+          className="text-center text-xs py-1.5 mt-2 rounded-lg"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid rgba(196, 94, 74, 0.3)",
+            color: "var(--ember)",
+          }}
+        >
+          {voiceNotice}
+        </div>
+      )}
 
       {(voice.voiceActive || journal.recording) && (
         <div
@@ -1873,13 +1865,18 @@ function MicButton({
   active,
   connecting,
   speaking,
+  disabled = false,
+  disabledReason,
   onClick,
 }: {
   active: boolean;
   connecting: boolean;
   speaking: boolean;
+  disabled?: boolean;
+  disabledReason?: string;
   onClick: () => void;
 }) {
+  const inactiveDisabled = disabled && !active;
   const bg = active
     ? speaking
       ? "var(--river)"
@@ -1896,12 +1893,14 @@ function MicButton({
   return (
     <button
       onClick={onClick}
-      disabled={connecting}
+      disabled={connecting || inactiveDisabled}
       className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all"
       style={{
         background: bg,
         border: `1px solid ${border}`,
         color: active || connecting ? "white" : "var(--text-dim)",
+        opacity: inactiveDisabled ? 0.5 : 1,
+        cursor: inactiveDisabled ? "not-allowed" : "pointer",
         animation: active && speaking ? "pulse 1.5s infinite" : "none",
       }}
       title={
@@ -1909,7 +1908,9 @@ function MicButton({
           ? "End voice session"
           : connecting
             ? "Connecting..."
-            : "Start voice conversation"
+            : inactiveDisabled
+              ? disabledReason ?? "Not ready"
+              : "Start voice conversation"
       }
     >
       {active ? (

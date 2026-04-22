@@ -25,7 +25,19 @@ export interface UseVoiceChatOptions {
   onTurnComplete?: (messages: VoiceMessage[]) => void;
   /** Called on connection error */
   onError?: (err: Error) => void;
+  /**
+   * Called when the session auto-closes (not a manual toggle-off).
+   * - "idle": no audio activity for the idle window (default 30s)
+   * - "cap": hard session cap reached (default 10 min)
+   * Consumers can use this to surface a "tap mic to continue" hint.
+   */
+  onAutoDisconnect?: (reason: "idle" | "cap") => void;
 }
+
+/** Silence window before the WS auto-closes. */
+const IDLE_TIMEOUT_MS = 30_000;
+/** Hard ceiling on a single voice session to bound per-session cost. */
+const SESSION_CAP_MS = 10 * 60 * 1000;
 
 export interface UseVoiceChatReturn {
   /** Current voice transcript messages */
@@ -62,6 +74,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     greeting,
     onTurnComplete,
     onError,
+    onAutoDisconnect,
   } = options;
 
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
@@ -76,14 +89,42 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     user: null,
     model: null,
   });
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const capTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      if (capTimerRef.current) clearTimeout(capTimerRef.current);
       audioManagerRef.current?.destroy();
       clientRef.current?.disconnect();
     };
   }, []);
+
+  const teardown = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (capTimerRef.current) clearTimeout(capTimerRef.current);
+    idleTimerRef.current = null;
+    capTimerRef.current = null;
+    audioManagerRef.current?.destroy();
+    audioManagerRef.current = null;
+    clientRef.current?.disconnect();
+    clientRef.current = null;
+    setVoiceActive(false);
+    setVoiceConnecting(false);
+    setUserSpeaking(false);
+    setInterimTranscript("");
+  }, []);
+
+  // Reset the idle timer on any audio activity (user speaking, transcripts, turn complete).
+  const bumpActivity = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      onAutoDisconnect?.("idle");
+      teardown();
+    }, IDLE_TIMEOUT_MS);
+  }, [onAutoDisconnect, teardown]);
 
   // Watchdog: keep capture context alive while voice is active
   useEffect(() => {
@@ -157,26 +198,24 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
 
   const toggleVoice = useCallback(async () => {
     if (voiceActive || voiceConnecting) {
-      audioManagerRef.current?.destroy();
-      audioManagerRef.current = null;
-      clientRef.current?.disconnect();
-      clientRef.current = null;
-      setVoiceActive(false);
-      setVoiceConnecting(false);
-      setUserSpeaking(false);
-      setInterimTranscript("");
+      teardown();
       return;
     }
 
     setVoiceConnecting(true);
     try {
       const tokenRes = await fetch(tokenEndpoint);
-      const { token } = await tokenRes.json();
-      if (!token) {
+      const body = await tokenRes.json().catch(() => ({} as Record<string, unknown>));
+      if (!tokenRes.ok || !body?.token) {
         setVoiceConnecting(false);
-        onError?.(new Error("No API token received"));
+        const msg =
+          (typeof body?.message === "string" && body.message) ||
+          (typeof body?.error === "string" && body.error) ||
+          "No API token received";
+        onError?.(new Error(msg));
         return;
       }
+      const token = body.token as string;
 
       const audioManager = new AudioManager();
       audioManagerRef.current = audioManager;
@@ -191,11 +230,13 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             setUserSpeaking(false);
             setInterimTranscript(""); // Gemini transcript replaces local interim
           }
+          bumpActivity();
           appendTranscript(role, text);
         },
         onInterrupted: () => audioManager.stopPlayback(),
         onUserSpeechStart: () => {
           setUserSpeaking(true);
+          bumpActivity();
           audioManager.stopPlayback();
           audioManager.ensureCaptureActive();
         },
@@ -203,6 +244,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         onTurnComplete: () => {
           // Ensure mic capture is active after model finishes speaking
           audioManager.ensureCaptureActive();
+          bumpActivity();
           setMessages((prev) => {
             const lastIdx = prev.length - 1;
             if (lastIdx >= 0 && prev[lastIdx].role === "assistant") {
@@ -215,6 +257,10 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         },
         onError: (err) => {
           onError?.(err);
+          if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+          if (capTimerRef.current) clearTimeout(capTimerRef.current);
+          idleTimerRef.current = null;
+          capTimerRef.current = null;
           setVoiceActive(false);
           setVoiceConnecting(false);
         },
@@ -222,6 +268,13 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
           if (connected) {
             setVoiceConnecting(false);
             setVoiceActive(true);
+            // Start the idle timer and the hard session cap on successful connect.
+            bumpActivity();
+            if (capTimerRef.current) clearTimeout(capTimerRef.current);
+            capTimerRef.current = setTimeout(() => {
+              onAutoDisconnect?.("cap");
+              teardown();
+            }, SESSION_CAP_MS);
           }
         },
         onSetupComplete: async () => {
@@ -257,6 +310,9 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     cleanupTranscript,
     onTurnComplete,
     onError,
+    onAutoDisconnect,
+    teardown,
+    bumpActivity,
   ]);
 
   const sendText = useCallback(
@@ -271,17 +327,10 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
   );
 
   const reset = useCallback(() => {
-    audioManagerRef.current?.destroy();
-    audioManagerRef.current = null;
-    clientRef.current?.disconnect();
-    clientRef.current = null;
-    setVoiceActive(false);
-    setVoiceConnecting(false);
-    setUserSpeaking(false);
-    setInterimTranscript("");
+    teardown();
     setMessages([]);
     pendingRef.current = { user: null, model: null };
-  }, []);
+  }, [teardown]);
 
   const appendMessage = useCallback(
     (role: "user" | "assistant", content: string) => {

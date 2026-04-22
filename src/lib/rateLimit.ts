@@ -67,6 +67,9 @@ export const RATE_LIMITS = {
   standard: { limit: 60, windowSec: 60 } as const,
   // Expensive LLM calls: full-session review, audio transcription.
   expensive: { limit: 10, windowSec: 60 } as const,
+  // Voice WS session starts per day. Paired with the 10-min session cap in
+  // useVoiceChat, bounds worst-case audio spend to ~100 min/user/day.
+  voice: { limit: 10, windowSec: 86400 } as const,
 } as const;
 
 export function rateLimitResponse(result: RateLimitResult): Response {

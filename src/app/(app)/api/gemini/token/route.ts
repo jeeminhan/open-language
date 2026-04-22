@@ -1,4 +1,5 @@
 import { getAuthUserId } from "@/lib/auth";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rateLimit";
 
 const EPHEMERAL_TOKEN_ENDPOINT =
   "https://generativelanguage.googleapis.com/v1alpha/auth_tokens";
@@ -8,6 +9,9 @@ export async function GET() {
   if (!userId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const blocked = await enforceRateLimit(userId, "voice", RATE_LIMITS.voice);
+  if (blocked) return blocked;
 
   const apiKey = process.env.LLM_API_KEY;
   if (!apiKey) {

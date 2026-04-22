@@ -1,4 +1,22 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { MermaidChart } from "./MermaidChart";
+
 export const dynamic = "force-dynamic";
+
+function extractMermaid(md: string): string | null {
+  const match = md.match(/```mermaid\n([\s\S]*?)\n```/);
+  return match ? match[1].trim() : null;
+}
+
+function loadPipelineDiagram(): string | null {
+  try {
+    const md = readFileSync(join(process.cwd(), "PIPELINE.md"), "utf-8");
+    return extractMermaid(md);
+  } catch {
+    return null;
+  }
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -30,6 +48,8 @@ function Prop({ label, value }: { label: string; value: string }) {
 }
 
 export default function ArchitecturePage() {
+  const pipelineDiagram = loadPipelineDiagram();
+
   return (
     <div className="space-y-8 max-w-3xl">
       <div>
@@ -38,6 +58,17 @@ export default function ArchitecturePage() {
           How the voice system, APIs, and analysis pipeline work under the hood.
         </p>
       </div>
+
+      {/* ─── Pipeline Diagram (source: PIPELINE.md) ─── */}
+      {pipelineDiagram && (
+        <Section title="Pipeline">
+          <p className="text-sm" style={{ color: "var(--text-dim)" }}>
+            Rendered from the <code className="font-mono">mermaid</code> block in{" "}
+            <code className="font-mono">PIPELINE.md</code>. Edit that file and refresh — this updates.
+          </p>
+          <MermaidChart source={pipelineDiagram} />
+        </Section>
+      )}
 
       {/* ─── Voice Pipeline ─── */}
       <Section title="Voice Pipeline">
@@ -79,21 +110,23 @@ Speakers`}</Code>
 
         <h3 className="text-sm font-semibold mt-4" style={{ color: "var(--text)" }}>Model</h3>
         <div className="space-y-1">
-          <Prop label="Model ID" value="gemini-live-2.5-flash" />
+          <Prop label="Model ID" value="gemini-3.1-flash-live-preview" />
           <Prop label="Type" value="Non-native audio (supports speechConfig.languageCode)" />
           <Prop label="Voice" value='Kore (prebuilt)' />
+          <Prop label="WS endpoint" value="generativelanguage.googleapis.com/ws/...BidiGenerateContentConstrained (v1alpha)" />
         </div>
         <p className="text-xs mt-2" style={{ color: "var(--text-dim)" }}>
+          The client connects using a short-lived ephemeral token (not the raw API key — see <code className="font-mono">/api/gemini/token</code> below).
           We use the non-native audio model instead of <code className="font-mono">gemini-2.5-flash-native-audio-preview</code> because
           the native model on the Developer API doesn&apos;t support <code className="font-mono">speechConfig.languageCode</code>,
           causing transcription errors for non-English languages. The non-native model supports language hints
-          while staying on the free-tier Developer API (Vertex AI supports language codes but has no free tier).
+          while staying on the Developer API (Vertex AI supports language codes but has no free tier).
         </p>
 
         <h3 className="text-sm font-semibold mt-4" style={{ color: "var(--text)" }}>Setup Message</h3>
         <Code>{`{
   "setup": {
-    "model": "models/gemini-live-2.5-flash",
+    "model": "models/gemini-3.1-flash-live-preview",
     "generationConfig": {
       "responseModalities": ["AUDIO"],
       "speechConfig": {
@@ -192,17 +225,30 @@ Speakers`}</Code>
           <div>
             <h3 className="text-sm font-semibold font-mono" style={{ color: "var(--moss)" }}>GET /api/gemini/token</h3>
             <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
-              Returns the Gemini API key for the client-side WebSocket connection. The key is stored server-side
-              in <code className="font-mono">LLM_API_KEY</code> and never bundled into the client.
+              Mints a <strong>short-lived ephemeral token</strong> by POSTing to Google&apos;s{" "}
+              <code className="font-mono">v1alpha/auth_tokens</code> endpoint, then returns it to the browser for the
+              WebSocket connection. The real <code className="font-mono">LLM_API_KEY</code> never leaves the server.
+              Gated by auth and a daily per-user voice quota (<code className="font-mono">RATE_LIMITS.voice</code> — 10 sessions/day),
+              which — paired with the 10-min session cap — bounds worst-case audio spend to ~100 min/user/day.
             </p>
           </div>
 
           <div>
             <h3 className="text-sm font-semibold font-mono" style={{ color: "var(--moss)" }}>POST /api/voice-turn</h3>
             <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
-              Called after each voice turn. Sends the user&apos;s transcribed message and the tutor&apos;s response
-              to Gemini (<code className="font-mono">gemini-2.5-flash</code> via REST) for error analysis.
+              Called after each voice turn with the user&apos;s transcribed message and the tutor&apos;s response.
+              Runs analysis on Gemini Flash text (<code className="font-mono">gemini-2.5-flash</code> via REST) — the voice
+              model itself never emits analysis, which is the core cost lever (audio tokens are 10–20× text).
               Creates a session if needed, saves the turn, upserts error patterns, grammar, and vocabulary.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold font-mono" style={{ color: "var(--moss)" }}>POST /api/session/end</h3>
+            <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
+              Called when the voice session auto-closes (idle or 10-min cap) or the user ends it manually.
+              Stamps <code className="font-mono">ended_at</code> and <code className="font-mono">duration_seconds</code> on the
+              <code className="font-mono"> sessions</code> row.
             </p>
           </div>
 
@@ -221,16 +267,17 @@ Speakers`}</Code>
             </ol>
             <p className="text-xs mt-2" style={{ color: "var(--text-dim)" }}>
               If 2+ errors are found, a 7th sequential pass clusters them by root cause.
-              All results are persisted to the SQLite database for long-term tracking.
+              All results are persisted to Supabase Postgres for long-term tracking.
             </p>
           </div>
 
           <div>
             <h3 className="text-sm font-semibold font-mono" style={{ color: "var(--moss)" }}>POST /api/chat</h3>
             <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
-              Text-based chat mode. Uses the same system prompt template with learner profile, error patterns,
-              and spaced repetition items injected. Calls Gemini via OpenAI-compatible API at
-              <code className="font-mono"> LLM_BASE_URL</code>.
+              Text-based chat mode. Uses the full learner context (SRS, errors, interests, history) with
+              <code className="font-mono"> gemini-2.5-flash</code> — this is where the &quot;deep&quot; tutor lives,
+              because text tokens are cheap. The voice path deliberately stays lean; per-turn analysis fills
+              the gap asynchronously via <code className="font-mono">/api/voice-turn</code>.
             </p>
           </div>
         </div>
@@ -256,16 +303,21 @@ Speakers`}</Code>
         <Code>{`Voice Turn
  │  user transcription + tutor transcription
  │  ↓ POST /api/voice-turn
- │  ├── Error analysis (Gemini REST)
- │  ├── Save turn to sessions table
- │  ├── Upsert error_patterns
- │  ├── Upsert grammar points
- │  └── Upsert vocabulary
+ │  ├── Error analysis (Gemini 2.5 Flash, REST)
+ │  ├── Create session row on first turn
+ │  ├── Save turn to turns table
+ │  ├── Upsert error_patterns (SRS-tracked)
+ │  ├── Upsert grammar_inventory
+ │  └── Upsert vocabulary (SRS-tracked)
  │
-Session End
+Session Auto-Close (idle 30s / cap 10min) or manual end
+ │  ↓ POST /api/session/end
+ │  └── Stamp ended_at + duration_seconds on sessions
+ │
+Session Review (optional, user-triggered)
  │  full transcript
  │  ↓ POST /api/review
- │  ├── 6 parallel LLM passes
+ │  ├── 6 parallel LLM passes (Gemini 2.5 Flash, REST)
  │  ├── Error clustering (if 2+ errors)
  │  ├── Persist error_patterns
  │  ├── Persist unknown vocabulary
@@ -273,10 +325,15 @@ Session End
  │  ├── Persist expressions
  │  └── Persist detected interests
  │
-Database: SQLite (better-sqlite3)
+Database: Supabase Postgres (shared with the Python CLI)
  │  Tables: learners, sessions, turns, error_patterns,
- │          grammar, vocabulary, expressions,
- │          phrasing_suggestions, interests`}</Code>
+ │          grammar_inventory, vocabulary, expressions,
+ │          phrasing_suggestions, learner_interests,
+ │          alongside_sessions, alongside_segments,
+ │          alongside_interactions, rate_limits`}</Code>
+        <p className="text-xs mt-2" style={{ color: "var(--text-dim)" }}>
+          Invariant: the voice WebSocket never writes to the DB directly. Every DB write goes through a Next.js API route.
+        </p>
       </Section>
 
       {/* ─── Key Files ─── */}
@@ -284,7 +341,7 @@ Database: SQLite (better-sqlite3)
         <div className="space-y-2 text-xs font-mono" style={{ color: "var(--text-dim)" }}>
           <div className="flex gap-2">
             <span style={{ color: "var(--river)", minWidth: "16rem" }}>src/lib/gemini-live.ts</span>
-            <span className="font-sans">WebSocket client for Gemini Live API</span>
+            <span className="font-sans">WebSocket client for Gemini Live API (setup, audio framing, transcripts)</span>
           </div>
           <div className="flex gap-2">
             <span style={{ color: "var(--river)", minWidth: "16rem" }}>src/lib/audio.ts</span>
@@ -292,25 +349,45 @@ Database: SQLite (better-sqlite3)
           </div>
           <div className="flex gap-2">
             <span style={{ color: "var(--river)", minWidth: "16rem" }}>src/hooks/useVoiceChat.ts</span>
-            <span className="font-sans">React hook bridging audio + WebSocket + UI state</span>
+            <span className="font-sans">React hook bridging audio + WebSocket + UI state; owns idle + session-cap timers</span>
           </div>
           <div className="flex gap-2">
             <span style={{ color: "var(--river)", minWidth: "16rem" }}>src/lib/tutor.ts</span>
-            <span className="font-sans">System prompt builder, text chat handler</span>
+            <span className="font-sans">System prompt builder for the text path + text chat handler</span>
+          </div>
+          <div className="flex gap-2">
+            <span style={{ color: "var(--river)", minWidth: "16rem" }}>src/app/(app)/chat/page.tsx</span>
+            <span className="font-sans">Chat UI; hosts the compact <code>buildVoicePrompt()</code> and onAutoDisconnect UX</span>
           </div>
           <div className="flex gap-2">
             <span style={{ color: "var(--river)", minWidth: "16rem" }}>src/lib/db.ts</span>
-            <span className="font-sans">SQLite schema, queries, upsert functions</span>
+            <span className="font-sans">Supabase query helpers and typed row interfaces</span>
+          </div>
+          <div className="flex gap-2">
+            <span style={{ color: "var(--river)", minWidth: "16rem" }}>src/lib/supabase.ts</span>
+            <span className="font-sans">Supabase service-role client (server-only)</span>
+          </div>
+          <div className="flex gap-2">
+            <span style={{ color: "var(--river)", minWidth: "16rem" }}>src/lib/rateLimit.ts</span>
+            <span className="font-sans">Supabase RPC-backed rate limiter; voice / standard / expensive profiles</span>
+          </div>
+          <div className="flex gap-2">
+            <span style={{ color: "var(--river)", minWidth: "16rem" }}>src/lib/auth.ts</span>
+            <span className="font-sans">Resolves the current learner&apos;s Supabase user id</span>
           </div>
           <div className="flex gap-2">
             <span style={{ color: "var(--river)", minWidth: "16rem" }}>public/capture.worklet.js</span>
-            <span className="font-sans">AudioWorklet for mic PCM capture</span>
+            <span className="font-sans">AudioWorklet for mic PCM capture (16 kHz mono)</span>
           </div>
           <div className="flex gap-2">
             <span style={{ color: "var(--river)", minWidth: "16rem" }}>prompts/system.txt</span>
-            <span className="font-sans">System prompt template with placeholders</span>
+            <span className="font-sans">Text-path system prompt template (voice path uses a compact builder — see PIPELINE.md)</span>
           </div>
         </div>
+        <p className="text-xs mt-3" style={{ color: "var(--text-dim)" }}>
+          See <code className="font-mono">PIPELINE.md</code> for the voice-cost levers, rate-limit ceilings,
+          and optimization backlog.
+        </p>
       </Section>
     </div>
   );

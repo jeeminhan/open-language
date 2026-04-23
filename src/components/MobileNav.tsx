@@ -24,6 +24,7 @@ const primaryLinks: PrimaryLink[] = [
 ];
 
 const secondaryLinks: SecondaryLink[] = [
+  { href: "/chat/learn", label: "Learn", experimental: true },
   { href: "/drive", label: "Drive", experimental: true },
   { href: "/listen", label: "Listen" },
   { href: "/alongside", label: "Alongside", experimental: true },

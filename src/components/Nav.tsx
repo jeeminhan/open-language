@@ -13,6 +13,7 @@ interface NavLink {
 const links: NavLink[] = [
   { href: "/dashboard", label: "Progress" },
   { href: "/chat", label: "Chat" },
+  { href: "/chat/learn", label: "Learn", experimental: true },
   { href: "/drive", label: "Drive", experimental: true },
   { href: "/listen", label: "Listen" },
   { href: "/alongside", label: "Alongside", experimental: true },

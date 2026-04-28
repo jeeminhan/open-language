@@ -1,8 +1,7 @@
 import OpenAI from "openai";
 import * as db from "./db";
-import fs from "fs";
-import path from "path";
 import { sanitizeForPrompt } from "./promptSafety";
+import { buildChatSystemPrompt } from "./prompts/ja/chat";
 
 const client = new OpenAI({
   baseURL: process.env.LLM_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -10,11 +9,6 @@ const client = new OpenAI({
 });
 
 const MODEL = process.env.LLM_MODEL || "gemini-2.5-flash";
-
-const SYSTEM_TEMPLATE = fs.readFileSync(
-  path.resolve(process.cwd(), process.env.PROMPT_PATH || "prompts/system.txt"),
-  "utf-8"
-);
 
 async function buildSystemPrompt(learner: db.Learner, sessionId: string): Promise<string> {
   const [activeErrors, recentCorrections, weakGrammar, avoidance, effective, l1Patterns, practiceItems, interests, dueVocab, dueGrammar] = await Promise.all([
@@ -46,7 +40,6 @@ async function buildSystemPrompt(learner: db.Learner, sessionId: string): Promis
     ? (avoidance as Array<{description: string}>).map(a => `- ${a.description}`).join("\n")
     : "None identified yet.";
 
-  const effectiveLevel = effective.confidence > 0.3 ? effective.level : (learner.proficiency_level || "A2");
   const levelNote = effective.confidence > 0.3
     ? `${effective.level} (computed: ${Math.round(effective.grammarMastery)}% grammar mastery, ${Math.round(effective.errorRate)}% error rate)`
     : `${learner.proficiency_level || "A2"} (registered — not enough data to adapt yet)`;
@@ -76,22 +69,20 @@ async function buildSystemPrompt(learner: db.Learner, sessionId: string): Promis
       }).join("\n")
     : "No interests detected yet — ask about their hobbies and preferences!";
 
-  return SYSTEM_TEMPLATE
-    .replace(/{learner_name}/g, learner.name)
-    .replace(/{native_language}/g, learner.native_language)
-    .replace(/{target_language}/g, learner.target_language)
-    .replace(/{proficiency_level}/g, effectiveLevel)
-    .replace(/{correction_tolerance}/g, learner.correction_tolerance || "moderate")
-    .replace(/{active_errors}/g, errorsText)
-    .replace(/{recent_corrections}/g, correctionsText)
-    .replace(/{weak_grammar}/g, grammarText)
-    .replace(/{avoidance_patterns}/g, avoidanceText)
-    .replace(/{level_note}/g, levelNote)
-    .replace(/{l1_interference}/g, l1Text)
-    .replace(/{practice_focus}/g, practiceText)
-    .replace(/{learner_interests}/g, interestsText)
-    .replace(/{vocab_due}/g, vocabDueText)
-    .replace(/{grammar_due}/g, grammarDueText);
+  return buildChatSystemPrompt({
+    learnerName: learner.name,
+    levelNote,
+    correctionTolerance: learner.correction_tolerance || "moderate",
+    activeErrors: errorsText,
+    recentCorrections: correctionsText,
+    weakGrammar: grammarText,
+    avoidancePatterns: avoidanceText,
+    l1Interference: l1Text,
+    practiceFocus: practiceText,
+    learnerInterests: interestsText,
+    vocabDue: vocabDueText,
+    grammarDue: grammarDueText,
+  });
 }
 
 interface ParsedResponse {

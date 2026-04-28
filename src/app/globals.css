@@ -18,6 +18,149 @@
   --color-foreground: var(--text);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-caveat: var(--font-caveat);
+}
+
+/* ─── Call-UI avatar pulse ─── */
+@keyframes call-avatar-ring {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  100% { transform: scale(1.28); opacity: 0; }
+}
+
+.call-avatar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #2a2a36 0%, #14141c 70%);
+  border: 2px solid var(--text-dim);
+  color: var(--gold);
+  font-family: var(--font-caveat), cursive;
+}
+.call-avatar.pulse::after,
+.call-avatar.pulse::before {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px dashed var(--gold);
+  pointer-events: none;
+}
+.call-avatar.pulse::after {
+  inset: -14px;
+  opacity: 0.5;
+  animation: call-avatar-ring 2.4s ease-out infinite;
+}
+.call-avatar.pulse::before {
+  inset: -28px;
+  opacity: 0.3;
+  animation: call-avatar-ring 2.4s ease-out 0.8s infinite;
+}
+
+/* Tutor captions — current bright, previous lingers dim */
+@keyframes call-caption-in {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes call-caption-dim {
+  0% { opacity: 1; color: var(--text); }
+  100% { opacity: 0.45; color: var(--text-dim); }
+}
+
+.call-captions-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+}
+.call-caption-current,
+.call-caption-previous {
+  text-align: center;
+  line-height: 1.55;
+}
+.call-caption-current {
+  font-size: 15px;
+  color: var(--text);
+  animation: call-caption-in 360ms ease-out;
+}
+.call-caption-previous {
+  font-size: 13px;
+  color: var(--text-dim);
+  opacity: 0.45;
+  animation: call-caption-dim 500ms ease-out;
+}
+
+/* Status text below the avatar */
+.call-status {
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.85;
+  letter-spacing: 0.05em;
+}
+
+/* Ringing: slightly larger, breathing opacity for a phone-ring rhythm */
+@keyframes call-status-breathe {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.95; }
+}
+.call-status-ringing {
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  animation: call-status-breathe 1.6s ease-in-out infinite;
+}
+
+/* Mid-call "saved to Review" pill */
+@keyframes save-toast-in {
+  0% { opacity: 0; transform: translate(-50%, 16px); }
+  100% { opacity: 1; transform: translate(-50%, 0); }
+}
+.save-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 124px);
+  transform: translateX(-50%);
+  z-index: 60;
+  animation: save-toast-in 220ms ease-out;
+  pointer-events: auto;
+}
+.save-toast-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  padding: 10px 16px;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.save-toast-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+  flex-shrink: 0;
+}
+.save-toast-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: left;
+}
+.save-toast-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+.save-toast-word {
+  font-size: 13px;
+  color: var(--gold);
+  font-family: "Noto Serif JP", var(--font-geist-sans), serif;
 }
 
 html, body {

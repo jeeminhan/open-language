@@ -18,13 +18,16 @@ export default function LandingPage() {
           you love &mdash; it remembers. ChatGPT doesn&apos;t.
         </p>
         <div className={styles.ctaRow}>
-          <Link href="/chat" className={styles.ctaPrimary}>
-            Try it free
+          <Link href="/login" className={styles.ctaPrimary}>
+            Sign in with Google
             <Arrow />
+          </Link>
+          <Link href="/home" className={styles.ctaSecondary}>
+            Try without signing in
           </Link>
         </div>
         <p className={styles.heroNote}>
-          Sign in with Google. Takes 10 seconds.
+          No sign-in for your first session.
         </p>
       </div>
 
@@ -179,10 +182,15 @@ export default function LandingPage() {
             English &harr; Japanese. On your phone or your laptop. Free to
             start.
           </p>
-          <Link href="/chat" className={styles.ctaPrimary}>
-            Try it free
-            <Arrow />
-          </Link>
+          <div className={styles.ctaRow}>
+            <Link href="/login" className={styles.ctaPrimary}>
+              Sign in with Google
+              <Arrow />
+            </Link>
+            <Link href="/home" className={styles.ctaSecondary}>
+              Try without signing in
+            </Link>
+          </div>
         </div>
       </section>
 

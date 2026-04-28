@@ -30,6 +30,21 @@ export default function LoginPage() {
     }
   }
 
+  async function handleGuest() {
+    setLoading(true);
+    setError(null);
+    const supabase = createSupabaseBrowser();
+    const { error } = await supabase.auth.signInAnonymously();
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next") || "/home";
+    window.location.href = next;
+  }
+
   async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -70,15 +85,8 @@ export default function LoginPage() {
     }
 
     const params = new URLSearchParams(window.location.search);
-    const next = params.get("next");
-    if (next) {
-      window.location.href = next;
-    } else {
-      const res = await fetch("/api/learners");
-      const learners = await res.json();
-      window.location.href =
-        Array.isArray(learners) && learners.length > 0 ? "/chat" : "/onboarding";
-    }
+    const next = params.get("next") || "/home";
+    window.location.href = next;
   }
 
   return (
@@ -153,6 +161,18 @@ export default function LoginPage() {
               {loading ? "Sending..." : "Send code"}
             </button>
             </form>
+
+            <div className="pt-2 text-center">
+              <button
+                type="button"
+                onClick={handleGuest}
+                disabled={loading}
+                className="text-xs underline"
+                style={{ color: "var(--text-dim)", opacity: loading ? 0.6 : 1 }}
+              >
+                Try without an account
+              </button>
+            </div>
           </div>
         ) : (
           <form onSubmit={handleVerify} className="space-y-3">

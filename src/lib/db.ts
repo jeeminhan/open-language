@@ -320,6 +320,21 @@ export async function createLearner(
   return data as Learner;
 }
 
+export async function updateLearnerLevel(
+  learnerId: string,
+  level: string,
+  userId?: string
+): Promise<Learner | null> {
+  let query = supabase
+    .from("learners")
+    .update({ proficiency_level: level })
+    .eq("id", learnerId);
+  if (userId) query = query.eq("user_id", userId);
+  const { data, error } = await query.select().single();
+  if (error || !data) return null;
+  return data as Learner;
+}
+
 export async function createSession(learnerId: string, mode = "text"): Promise<Session> {
   const id = uid();
   const { data } = await supabase

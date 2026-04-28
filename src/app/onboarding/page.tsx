@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const PAIRS = [
   { native: "English", target: "Japanese", nativeFlag: "En", targetFlag: "日" },
-  { native: "English", target: "Korean", nativeFlag: "En", targetFlag: "한" },
   { native: "Korean", target: "English", nativeFlag: "한", targetFlag: "En" },
-  { native: "Japanese", target: "English", nativeFlag: "日", targetFlag: "En" },
 ];
 
 const LEVELS = [
@@ -21,16 +19,26 @@ const LEVELS = [
 type Step = "welcome" | "pair" | "level" | "name" | "creating";
 
 export default function OnboardingPage() {
+  const [isGuest, setIsGuest] = useState(false);
   const [step, setStep] = useState<Step>("welcome");
   const [pairIdx, setPairIdx] = useState<number | null>(null);
   const [level, setLevel] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const guest = params.get("guest") === "1";
+    setIsGuest(guest);
+    if (guest) setStep("pair");
+  }, []);
+
   const pair = pairIdx !== null ? PAIRS[pairIdx] : null;
 
-  async function createProfile() {
-    if (!name.trim() || !pair || !level) return;
+  async function createProfile(nameOverride?: string, levelOverride?: string) {
+    const resolvedName = (nameOverride ?? name).trim();
+    const resolvedLevel = levelOverride ?? level;
+    if (!resolvedName || !pair || !resolvedLevel) return;
     setStep("creating");
     setError("");
 
@@ -39,10 +47,10 @@ export default function OnboardingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: name.trim(),
+          name: resolvedName,
           nativeLanguage: pair.native,
           targetLanguage: pair.target,
-          level,
+          level: resolvedLevel,
           tolerance: "moderate",
         }),
       });
@@ -50,14 +58,14 @@ export default function OnboardingPage() {
       if (data.id) {
         localStorage.setItem("active_learner", data.id);
         document.cookie = `active_learner=${encodeURIComponent(data.id)}; path=/; max-age=31536000; SameSite=Lax`;
-        window.location.href = "/chat";
+        window.location.href = "/home";
       } else {
         setError(data.error || "Something went wrong");
-        setStep("name");
+        setStep(isGuest ? "level" : "name");
       }
     } catch {
       setError("Failed to create profile. Please try again.");
-      setStep("name");
+      setStep(isGuest ? "level" : "name");
     }
   }
 
@@ -185,7 +193,14 @@ export default function OnboardingPage() {
               {LEVELS.map((l) => (
                 <button
                   key={l.value}
-                  onClick={() => { setLevel(l.value); setStep("name"); }}
+                  onClick={() => {
+                    setLevel(l.value);
+                    if (isGuest) {
+                      createProfile("friend", l.value);
+                    } else {
+                      setStep("name");
+                    }
+                  }}
                   className="w-full flex items-center justify-between p-4 rounded-lg border transition-all hover:scale-[1.01]"
                   style={{
                     background: level === l.value ? "var(--bg-hover)" : "var(--bg-card)",
@@ -245,7 +260,7 @@ export default function OnboardingPage() {
               <p className="text-sm mb-3" style={{ color: "var(--ember)" }}>{error}</p>
             )}
             <button
-              onClick={createProfile}
+              onClick={() => createProfile()}
               disabled={!name.trim()}
               className="w-full py-3 rounded-lg text-base font-medium transition-all hover:scale-[1.02]"
               style={{

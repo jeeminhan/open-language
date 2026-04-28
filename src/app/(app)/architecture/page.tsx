@@ -380,8 +380,8 @@ Database: Supabase Postgres (shared with the Python CLI)
             <span className="font-sans">AudioWorklet for mic PCM capture (16 kHz mono)</span>
           </div>
           <div className="flex gap-2">
-            <span style={{ color: "var(--river)", minWidth: "16rem" }}>prompts/system.txt</span>
-            <span className="font-sans">Text-path system prompt template (voice path uses a compact builder — see PIPELINE.md)</span>
+            <span style={{ color: "var(--river)", minWidth: "16rem" }}>src/lib/prompts/ja/</span>
+            <span className="font-sans">All English→Japanese prompts (call, level test, chat) — share style/mode rules via shared.ts</span>
           </div>
         </div>
         <p className="text-xs mt-3" style={{ color: "var(--text-dim)" }}>

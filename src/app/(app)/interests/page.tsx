@@ -134,7 +134,7 @@ export default function InterestsPage() {
     if (chosen.length === 0) return;
     // Store selected topics and navigate to chat
     sessionStorage.setItem("chat_topics", JSON.stringify(chosen));
-    window.location.href = "/chat";
+    window.location.href = "/call";
   }
 
   const groupedInterests = interests.reduce<Record<string, Interest[]>>((acc, i) => {

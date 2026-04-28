@@ -69,9 +69,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // If logged in and on login page, redirect to chat
+  // If logged in and on login page, send them to the app entry.
   if (user && path === "/login") {
-    return NextResponse.redirect(new URL("/chat", request.url));
+    return NextResponse.redirect(new URL("/home", request.url));
   }
 
   return response;

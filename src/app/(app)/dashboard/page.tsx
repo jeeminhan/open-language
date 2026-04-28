@@ -165,7 +165,7 @@ export default async function ProgressPage() {
         </div>
         {today.sessions === 0 && (
           <Link
-            href="/chat"
+            href="/call"
             className="mt-3 block text-center rounded-lg py-3 text-sm font-medium transition-all hover:scale-[1.01]"
             style={{ background: "var(--moss)", color: "white" }}
           >

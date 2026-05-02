@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVoiceChat } from "@/hooks/useVoiceChat";
 import { useRingtone } from "@/hooks/useRingtone";
 import { getLanguageCode } from "@/lib/languages";
@@ -32,6 +32,17 @@ import { logSessionEvent } from "@/lib/sessionLogger";
 const MAX_DRILL_WORDS = 5;
 const ROUTING_GRACE_MESSAGES = 2;
 
+// Silent control token the level-test prompt appends to its final closing
+// message. We strip it from anything user-visible and use its appearance as
+// the trigger to auto-end the call.
+const LEVELTEST_DONE_TOKEN = "[[LEVELTEST_DONE]]";
+const LEVELTEST_DONE_REGEX = /\s*\[\[LEVELTEST_DONE\]\]\s*/g;
+const LEVELTEST_END_DELAY_MS = 1500;
+
+function stripLevelTestToken(content: string): string {
+  return content.replace(LEVELTEST_DONE_REGEX, "").trim();
+}
+
 interface Learner {
   id: string;
   name: string;
@@ -47,7 +58,6 @@ interface Props {
 
 const TUTOR_BY_TARGET: Record<string, { name: string; flag: string }> = {
   Japanese: { name: "Yuki", flag: "🇯🇵" },
-  English: { name: "Sam", flag: "🇺🇸" },
 };
 
 function formatDuration(totalSeconds: number): string {
@@ -65,16 +75,22 @@ export default function InCall({ learner, onEnd }: Props) {
   const [captionsOn, setCaptionsOn] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [ending, setEnding] = useState(false);
   const autoStartedRef = useRef(false);
   const isMountedRef = useRef(true);
   const startTimeRef = useRef<number | null>(null);
+  const endingRef = useRef(false);
+  const sessionStartPromiseRef = useRef<Promise<string | null> | null>(null);
+  const pendingTurnSavesRef = useRef<Set<Promise<void>>>(new Set());
+  // One-shot guard: ensures the level-test auto-end fires at most once even if
+  // the closing message re-renders or the token appears in stripped form.
+  const levelTestEndScheduledRef = useRef(false);
 
   // Per-call analytics — populated as turns finalize and surfaced in the recap.
   const sessionIdRef = useRef<string | null>(null);
   const turnNumberRef = useRef(0);
   const savedTurnsRef = useRef<Set<string>>(new Set());
   const newWordsRef = useRef<string[]>([]);
-  const newWordsSeenRef = useRef<Set<string>>(new Set());
   const errorsCountRef = useRef(0);
 
   // Mid-call toast — queue of newly-saved words awaiting their moment.
@@ -124,13 +140,78 @@ export default function InCall({ learner, onEnd }: Props) {
 
   const greeting = isFirstCall ? GREETING_FIRST_CALL : GREETING_RECURRING_CALL;
 
+  const ensureSessionStarted = useCallback(async (): Promise<string | null> => {
+    if (sessionIdRef.current) return sessionIdRef.current;
+    if (sessionStartPromiseRef.current) return sessionStartPromiseRef.current;
+    if (isFirstCall === null) {
+      setErrorMsg("Still preparing call. Try again in a moment.");
+      return null;
+    }
+
+    sessionStartPromiseRef.current = fetch("/api/session/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: isFirstCall ? "level-test" : "voice-web",
+      }),
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || typeof data.sessionId !== "string") {
+          throw new Error(data.error || "Could not start session.");
+        }
+        sessionIdRef.current = data.sessionId;
+        return data.sessionId as string;
+      })
+      .catch((err) => {
+        setErrorMsg(err instanceof Error ? err.message : "Could not start session.");
+        return null;
+      })
+      .finally(() => {
+        sessionStartPromiseRef.current = null;
+      });
+
+    return sessionStartPromiseRef.current;
+  }, [isFirstCall]);
+
+  const saveRawTurn = useCallback(
+    (turnNumber: number, userMessage: string, tutorResponse: string) => {
+      const save = (async () => {
+        const sessionId = sessionIdRef.current;
+        if (!sessionId) return;
+        const res = await fetch("/api/session/turn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            turnNumber,
+            userMessage,
+            tutorResponse,
+          }),
+        });
+        if (!res.ok) throw new Error("Could not save turn.");
+      })();
+
+      pendingTurnSavesRef.current.add(save);
+      void save
+        .catch(() => {
+          // /session/finish replays missing raw turns from the final transcript.
+        })
+        .finally(() => {
+          pendingTurnSavesRef.current.delete(save);
+        });
+    },
+    []
+  );
+
   const voice = useVoiceChat({
     systemPrompt,
     languageCode,
     greeting,
     onTurnComplete: (msgs) => {
       // Find the most recent complete user→assistant pair that hasn't been
-      // saved, and post it to /api/voice-turn for analysis + SRS queueing.
+      // saved, and post the raw transcript turn. Analysis happens once at
+      // session finish.
       // Walk backwards from the second-to-last message so we're saving a
       // pair, not a half-formed turn.
       for (let i = msgs.length - 2; i >= 0; i--) {
@@ -147,52 +228,7 @@ export default function InCall({ learner, onEnd }: Props) {
         turnNumberRef.current += 1;
         const turnNumber = turnNumberRef.current;
 
-        // Slight delay so trailing transcript chunks settle before we send.
-        setTimeout(() => {
-          if (!isMountedRef.current) return;
-          fetch("/api/voice-turn", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId: sessionIdRef.current,
-              turnNumber,
-              userMessage: userMsg.content,
-              tutorResponse: assistantMsg.content,
-            }),
-          })
-            .then((r) => r.json())
-            .then(
-              (data: {
-                sessionId?: string;
-                errors?: unknown[];
-                unknownWords?: string[];
-              }) => {
-                if (!isMountedRef.current) return;
-                if (data.sessionId && !sessionIdRef.current) {
-                  sessionIdRef.current = data.sessionId;
-                }
-                if (Array.isArray(data.unknownWords)) {
-                  const fresh: string[] = [];
-                  for (const w of data.unknownWords) {
-                    if (typeof w !== "string" || !w.trim()) continue;
-                    if (newWordsSeenRef.current.has(w)) continue;
-                    newWordsSeenRef.current.add(w);
-                    newWordsRef.current.push(w);
-                    fresh.push(w);
-                  }
-                  if (fresh.length > 0) {
-                    setToastQueue((prev) => [...prev, ...fresh]);
-                  }
-                }
-                if (Array.isArray(data.errors)) {
-                  errorsCountRef.current += data.errors.length;
-                }
-              }
-            )
-            .catch(() => {
-              // Silent failure — analysis is best-effort, the call keeps working.
-            });
-        }, 1500);
+        saveRawTurn(turnNumber, userMsg.content, assistantMsg.content);
         break;
       }
     },
@@ -333,8 +369,12 @@ export default function InCall({ learner, onEnd }: Props) {
     if (!ringDone || !wordsReady || isFirstCall === null) return;
     if (voice.voiceActive || voice.voiceConnecting) return;
     autoStartedRef.current = true;
-    void voice.toggleVoice();
-  }, [voice, ringDone, wordsReady, isFirstCall]);
+    void (async () => {
+      const sessionId = await ensureSessionStarted();
+      if (!sessionId) return;
+      await voice.toggleVoice();
+    })();
+  }, [voice, ringDone, wordsReady, isFirstCall, ensureSessionStarted]);
 
   // Track elapsed time while session is active
   useEffect(() => {
@@ -368,46 +408,90 @@ export default function InCall({ learner, onEnd }: Props) {
   const muted = !voice.voiceActive && !voice.voiceConnecting;
 
   function handleToggleMute() {
+    if (ending) return;
     setErrorMsg(null);
-    void voice.toggleVoice();
+    void (async () => {
+      if (!voice.voiceActive && !voice.voiceConnecting) {
+        const sessionId = await ensureSessionStarted();
+        if (!sessionId) return;
+      }
+      await voice.toggleVoice();
+    })();
   }
 
   function handleToggleCaptions() {
     setCaptionsOn((prev) => !prev);
   }
 
-  function handleEnd() {
+  async function handleEnd() {
+    if (endingRef.current) return;
+    endingRef.current = true;
+    setEnding(true);
+
     const sessionId = sessionIdRef.current;
+    const messages = voice.messages.map((m) => ({
+      ...m,
+      content: stripLevelTestToken(m.content),
+    }));
     logSessionEvent({
       type: "call-ended",
       elapsedSec,
-      messageCount: voice.messages.length,
+      messageCount: messages.length,
       newWordsCount: newWordsRef.current.length,
       errorsCount: errorsCountRef.current,
     });
+    voice.reset();
+
+    let reviewedWords = [...newWordsRef.current];
+    let reviewedErrorCount = errorsCountRef.current;
+
+    if (sessionId) {
+      await Promise.allSettled([...pendingTurnSavesRef.current]);
+      try {
+        const res = await fetch("/api/session/finish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            messages: messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+          }),
+        });
+        if (!res.ok) throw new Error("finish failed");
+        const data = await res.json();
+        const queued = data?.review?.queuedForLearning;
+        const errors = data?.review?.errors;
+        if (Array.isArray(queued)) {
+          reviewedWords = queued.filter((w): w is string => typeof w === "string");
+        }
+        if (Array.isArray(errors)) {
+          reviewedErrorCount = errors.length;
+        }
+      } catch {
+        await fetch("/api/session/end", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        }).catch(() => {
+          // Silent — the session row will naturally age out server-side.
+        });
+      }
+    }
+
     const summary: CallSummary = {
       tutorName: tutor.name,
       targetLanguage: learner.target_language,
       nativeLanguage: learner.native_language,
       elapsedSec,
-      messages: voice.messages,
-      newWords: [...newWordsRef.current],
-      errorsFoundCount: errorsCountRef.current,
+      messages,
+      newWords: reviewedWords,
+      errorsFoundCount: reviewedErrorCount,
       sessionId,
       levelTest: null,
       levelTestPending: isFirstCall === true,
     };
-    voice.reset();
-    // Best-effort session close — fire and forget.
-    if (sessionId) {
-      fetch("/api/session/end", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId }),
-      }).catch(() => {
-        // Silent — the session row will naturally age out server-side.
-      });
-    }
     onEnd(summary);
   }
 
@@ -515,10 +599,62 @@ export default function InCall({ learner, onEnd }: Props) {
 
   // Captions show only what the tutor is saying — last two tutor turns.
   // Previous turn lingers dim until a new one arrives and pushes it off.
-  const tutorMessages = voice.messages.filter((m) => m.role === "assistant");
+  // Strip the level-test end-signal token from anything user-visible.
+  const tutorMessages = voice.messages
+    .filter((m) => m.role === "assistant")
+    .map((m) => ({ ...m, content: stripLevelTestToken(m.content) }))
+    .filter((m) => m.content.length > 0);
   const currentTutorMessage = tutorMessages[tutorMessages.length - 1] ?? null;
   const previousTutorMessage =
     tutorMessages.length >= 2 ? tutorMessages[tutorMessages.length - 2] : null;
+
+  // Auto-end the call when the level-test tutor emits an end signal. Two
+  // sources, scanned across ALL assistant messages so a trailing user message
+  // doesn't hide the assistant's closing line:
+  //   1. The [[LEVELTEST_DONE]] sentinel from the prompt (preferred).
+  //   2. Phrase fallback for cases where the model drops the token but says
+  //      its closing line ("I have a sense of where you are" / 画面をタップ).
+  // We wait a beat so the closing line plays out, then hang up. One-shot.
+  useEffect(() => {
+    if (!isFirstCall) return;
+    if (levelTestEndScheduledRef.current) return;
+    let trigger: "token" | "phrase" | null = null;
+    let triggeredContent = "";
+    for (let i = voice.messages.length - 1; i >= 0; i--) {
+      const m = voice.messages[i];
+      if (m.role !== "assistant") continue;
+      if (m.content.includes(LEVELTEST_DONE_TOKEN)) {
+        trigger = "token";
+        triggeredContent = m.content;
+        break;
+      }
+      const lc = m.content.toLowerCase();
+      if (
+        m.content.includes("画面をタップ") ||
+        m.content.includes("画面を タップ") ||
+        lc.includes("tap end") ||
+        lc.includes("i have a sense of where you are")
+      ) {
+        trigger = "phrase";
+        triggeredContent = m.content;
+        // keep scanning earlier — token in an older message would still win
+      }
+    }
+    if (!trigger) return;
+    levelTestEndScheduledRef.current = true;
+    logSessionEvent({
+      type: "leveltest-auto-end-scheduled",
+      trigger,
+      content: triggeredContent.slice(0, 200),
+    });
+    const t = setTimeout(() => {
+      if (!isMountedRef.current) return;
+      handleEnd();
+    }, LEVELTEST_END_DELAY_MS);
+    return () => clearTimeout(t);
+    // handleEnd is stable enough for this trigger; deps intentionally narrow.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice.messages, isFirstCall]);
 
   // Watch user + tutor messages and route to an agenda. Three signal tiers:
   //   1. Explicit user keyword (English or target-language) — strongest
@@ -604,7 +740,7 @@ export default function InCall({ learner, onEnd }: Props) {
   // Once any message has come through the socket, we've connected; from that
   // point on a muted session shows "tap mic to resume" instead of ringing.
   const hasEverConnected = voice.messages.length > 0 || voice.voiceActive;
-  const isRinging = !hasEverConnected;
+  const isRinging = !ending && !hasEverConnected;
 
   // Play ringback tone while ringing, stop when connected.
   const setRinging = useRingtone();
@@ -647,7 +783,9 @@ export default function InCall({ learner, onEnd }: Props) {
           {tutor.name[0]}
         </div>
 
-        {isRinging ? (
+        {ending ? (
+          <div className="call-status">saving your recap…</div>
+        ) : isRinging ? (
           <div className="call-status call-status-ringing">ringing…</div>
         ) : captionsOn ? (
           <div
@@ -702,7 +840,7 @@ export default function InCall({ learner, onEnd }: Props) {
         onToggleMute={handleToggleMute}
         onToggleCaptions={handleToggleCaptions}
         onEnd={handleEnd}
-        disabled={voice.voiceConnecting}
+        disabled={voice.voiceConnecting || ending || isFirstCall === null}
       />
 
       {activeToast && (

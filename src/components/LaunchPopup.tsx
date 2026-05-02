@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import {
+  SUPPORTED_NATIVE_LANGUAGE,
+  SUPPORTED_TARGET_LANGUAGE,
+} from "@/lib/supportedLanguage";
 
 interface Pair {
   native: string;
@@ -12,18 +16,11 @@ interface Pair {
 
 const PAIRS: Pair[] = [
   {
-    native: "English",
-    target: "Japanese",
+    native: SUPPORTED_NATIVE_LANGUAGE,
+    target: SUPPORTED_TARGET_LANGUAGE,
     nativeScript: "EN",
     targetScript: "日本語",
-    description: "Japanese",
-  },
-  {
-    native: "Korean",
-    target: "English",
-    nativeScript: "한국어",
-    targetScript: "EN",
-    description: "English",
+    description: SUPPORTED_TARGET_LANGUAGE,
   },
 ];
 

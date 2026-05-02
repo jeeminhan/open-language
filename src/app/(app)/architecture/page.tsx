@@ -133,7 +133,7 @@ Speakers`}</Code>
         "voiceConfig": {
           "prebuiltVoiceConfig": { "voiceName": "Kore" }
         },
-        "languageCode": "ko-KR"  // BCP-47, set per learner
+        "languageCode": "ja-JP"  // BCP-47 for Japanese
       }
     },
     "systemInstruction": {
@@ -234,26 +234,40 @@ Speakers`}</Code>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold font-mono" style={{ color: "var(--moss)" }}>POST /api/voice-turn</h3>
+            <h3 className="text-sm font-semibold font-mono" style={{ color: "var(--moss)" }}>POST /api/session/start</h3>
             <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
-              Called after each voice turn with the user&apos;s transcribed message and the tutor&apos;s response.
-              Runs analysis on Gemini Flash text (<code className="font-mono">gemini-2.5-flash</code> via REST) — the voice
-              model itself never emits analysis, which is the core cost lever (audio tokens are 10–20× text).
-              Creates a session if needed, saves the turn, upserts error patterns, grammar, and vocabulary.
+              Creates the <code className="font-mono">sessions</code> row before the voice socket opens. This gives
+              every raw voice turn a stable session id; sessions are no longer lazily created by per-turn analysis.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold font-mono" style={{ color: "var(--moss)" }}>POST /api/session/turn</h3>
+            <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
+              Called after each complete user/tutor exchange. Saves the raw transcript pair only. It does not call an LLM
+              and does not persist errors, vocabulary, or grammar.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold font-mono" style={{ color: "var(--moss)" }}>POST /api/session/finish</h3>
+            <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
+              Called when the user ends the voice session. Runs one full-transcript Gemini Flash review, replays any missing
+              raw turns, stamps the session complete, and persists error patterns, grammar, vocabulary, phrasing suggestions,
+              expressions, and detected interests.
             </p>
           </div>
 
           <div>
             <h3 className="text-sm font-semibold font-mono" style={{ color: "var(--moss)" }}>POST /api/session/end</h3>
             <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
-              Called when the voice session auto-closes (idle or 10-min cap) or the user ends it manually.
-              Stamps <code className="font-mono">ended_at</code> and <code className="font-mono">duration_seconds</code> on the
-              <code className="font-mono"> sessions</code> row.
+              Fallback close path for unloads and finish failures. Stamps <code className="font-mono">ended_at</code> and
+              <code className="font-mono">duration_seconds</code> without running the full review.
             </p>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold font-mono" style={{ color: "var(--moss)" }}>POST /api/review</h3>
+            <h3 className="text-sm font-semibold font-mono" style={{ color: "var(--moss)" }}>POST /api/review (legacy)</h3>
             <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
               Post-session deep review. Runs <strong>6 parallel LLM passes</strong> on the full conversation transcript:
             </p>
@@ -276,8 +290,8 @@ Speakers`}</Code>
             <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
               Text-based chat mode. Uses the full learner context (SRS, errors, interests, history) with
               <code className="font-mono"> gemini-2.5-flash</code> — this is where the &quot;deep&quot; tutor lives,
-              because text tokens are cheap. The voice path deliberately stays lean; per-turn analysis fills
-              the gap asynchronously via <code className="font-mono">/api/voice-turn</code>.
+              because text tokens are cheap. The voice path deliberately stays lean and saves durable learning state
+              at session finish.
             </p>
           </div>
         </div>
@@ -293,37 +307,37 @@ Speakers`}</Code>
         </div>
         <p className="text-xs mt-3" style={{ color: "var(--text-dim)" }}>
           The voice conversation uses Gemini Live (WebSocket, real-time audio). The post-session analysis
-          and per-turn error checking use the standard REST API with the same API key but a different model
-          optimized for text reasoning.
+          uses the standard REST API with the same API key but a different model optimized for text reasoning.
         </p>
       </Section>
 
       {/* ─── Data Flow ─── */}
       <Section title="Data Persistence">
-        <Code>{`Voice Turn
+        <Code>{`Session Start
+ │  ↓ POST /api/session/start
+ │  └── Create sessions row before voice starts
+ │
+Voice Turn
  │  user transcription + tutor transcription
- │  ↓ POST /api/voice-turn
- │  ├── Error analysis (Gemini 2.5 Flash, REST)
- │  ├── Create session row on first turn
- │  ├── Save turn to turns table
- │  ├── Upsert error_patterns (SRS-tracked)
- │  ├── Upsert grammar_inventory
- │  └── Upsert vocabulary (SRS-tracked)
+ │  ↓ POST /api/session/turn
+ │  └── Save raw turn to turns table, no LLM analysis
  │
 Session Auto-Close (idle 30s / cap 10min) or manual end
- │  ↓ POST /api/session/end
- │  └── Stamp ended_at + duration_seconds on sessions
- │
-Session Review (optional, user-triggered)
  │  full transcript
- │  ↓ POST /api/review
- │  ├── 6 parallel LLM passes (Gemini 2.5 Flash, REST)
- │  ├── Error clustering (if 2+ errors)
+ │  ↓ POST /api/session/finish
+ │  ├── One full-session review (Gemini Flash, REST)
+ │  ├── Replay any missing raw turns
+ │  ├── Stamp ended_at + duration_seconds on sessions
  │  ├── Persist error_patterns
  │  ├── Persist unknown vocabulary
+ │  ├── Persist grammar_inventory
  │  ├── Persist phrasing_suggestions
  │  ├── Persist expressions
  │  └── Persist detected interests
+ │
+Fallback End
+ │  ↓ POST /api/session/end
+ │  └── Stamp ended_at + duration_seconds without analysis
  │
 Database: Supabase Postgres (shared with the Python CLI)
  │  Tables: learners, sessions, turns, error_patterns,

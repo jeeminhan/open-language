@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import LaunchPopup from "@/components/LaunchPopup";
 import HomeScreen from "@/components/HomeScreen";
+import { isSupportedLanguagePair } from "@/lib/supportedLanguage";
 
 interface Learner {
   id: string;
@@ -13,14 +14,10 @@ interface Learner {
   last_session_at?: string | null;
 }
 
-const SUPPORTED_PAIRS = new Set([
-  "English→Japanese",
-  "Korean→English",
-]);
-
 function isSupportedPair(learner: Learner): boolean {
-  return SUPPORTED_PAIRS.has(
-    `${learner.native_language}→${learner.target_language}`
+  return isSupportedLanguagePair(
+    learner.native_language,
+    learner.target_language
   );
 }
 

@@ -1,6 +1,12 @@
 import { chat } from "@/lib/tutor";
 import { getLearner, createLearner, createSession, getActiveLearnerIdFromRequest, getAllLearners } from "@/lib/db";
 import { getAuthUserId } from "@/lib/auth";
+import {
+  isSupportedLanguagePair,
+  SUPPORTED_NATIVE_LANGUAGE,
+  SUPPORTED_TARGET_LANGUAGE,
+  unsupportedLanguagePairMessage,
+} from "@/lib/supportedLanguage";
 
 export async function POST(request: Request) {
   const userId = await getAuthUserId();
@@ -19,8 +25,24 @@ export async function POST(request: Request) {
   if (!learner) {
     learner = await getLearner(getActiveLearnerIdFromRequest(request), userId ?? undefined);
   }
+  if (
+    learner &&
+    !isSupportedLanguagePair(learner.native_language, learner.target_language)
+  ) {
+    return Response.json(
+      { error: unsupportedLanguagePairMessage() },
+      { status: 400 }
+    );
+  }
   if (!learner) {
-    learner = await createLearner("Learner", "English", "Korean", "A2", "moderate", userId ?? undefined);
+    learner = await createLearner(
+      "Learner",
+      SUPPORTED_NATIVE_LANGUAGE,
+      SUPPORTED_TARGET_LANGUAGE,
+      "A2",
+      "moderate",
+      userId ?? undefined
+    );
   }
 
   // Get or create session

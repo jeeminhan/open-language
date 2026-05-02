@@ -1,10 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  SUPPORTED_NATIVE_LANGUAGE,
+  SUPPORTED_TARGET_LANGUAGE,
+} from "@/lib/supportedLanguage";
 
 const PAIRS = [
-  { native: "English", target: "Japanese", nativeFlag: "En", targetFlag: "日" },
-  { native: "Korean", target: "English", nativeFlag: "한", targetFlag: "En" },
+  {
+    native: SUPPORTED_NATIVE_LANGUAGE,
+    target: SUPPORTED_TARGET_LANGUAGE,
+    nativeFlag: "En",
+    targetFlag: "日",
+  },
 ];
 
 const LEVELS = [
@@ -18,20 +27,26 @@ const LEVELS = [
 
 type Step = "welcome" | "pair" | "level" | "name" | "creating";
 
+function isGuestLaunch(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("guest") === "1";
+}
+
+function rememberActiveLearner(id: string): void {
+  localStorage.setItem("active_learner", id);
+  document.cookie = `active_learner=${encodeURIComponent(id)}; path=/; max-age=31536000; SameSite=Lax`;
+}
+
 export default function OnboardingPage() {
-  const [isGuest, setIsGuest] = useState(false);
-  const [step, setStep] = useState<Step>("welcome");
+  const router = useRouter();
+  const [isGuest] = useState(isGuestLaunch);
+  const [step, setStep] = useState<Step>(() =>
+    isGuestLaunch() ? "pair" : "welcome"
+  );
   const [pairIdx, setPairIdx] = useState<number | null>(null);
   const [level, setLevel] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const guest = params.get("guest") === "1";
-    setIsGuest(guest);
-    if (guest) setStep("pair");
-  }, []);
 
   const pair = pairIdx !== null ? PAIRS[pairIdx] : null;
 
@@ -56,9 +71,8 @@ export default function OnboardingPage() {
       });
       const data = await res.json();
       if (data.id) {
-        localStorage.setItem("active_learner", data.id);
-        document.cookie = `active_learner=${encodeURIComponent(data.id)}; path=/; max-age=31536000; SameSite=Lax`;
-        window.location.href = "/home";
+        rememberActiveLearner(data.id);
+        router.replace("/home");
       } else {
         setError(data.error || "Something went wrong");
         setStep(isGuest ? "level" : "name");

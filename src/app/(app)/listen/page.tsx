@@ -53,7 +53,7 @@ export default function ListenPage() {
   }, []);
 
   const activeLanguage = useTargetLang
-    ? learner.target_language || "Korean"
+    ? learner.target_language || "Japanese"
     : learner.native_language || "English";
   const sttLang = getLanguageCode(activeLanguage) || "en-US";
 

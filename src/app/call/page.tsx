@@ -6,10 +6,12 @@ import { useAuthReady } from "@/hooks/useAuthReady";
 import InCall from "@/components/InCall";
 import CallRecap, { type CallSummary } from "@/components/CallRecap";
 import {
+  clearCachedLearner,
   readCachedLearner,
   writeCachedLearner,
   type CachedLearner,
 } from "@/lib/learnerCache";
+import { isSupportedLanguagePair } from "@/lib/supportedLanguage";
 
 interface Learner {
   id: string;
@@ -20,14 +22,13 @@ interface Learner {
   last_session_at?: string | null;
 }
 
-const SUPPORTED_PAIRS = new Set(["English→Japanese", "Korean→English"]);
-
 function isSupportedPair(learner: {
   native_language: string;
   target_language: string;
 }): boolean {
-  return SUPPORTED_PAIRS.has(
-    `${learner.native_language}→${learner.target_language}`
+  return isSupportedLanguagePair(
+    learner.native_language,
+    learner.target_language
   );
 }
 
@@ -57,9 +58,13 @@ export default function CallPage() {
   // Seed with the cached learner on first render so we skip the loading screen
   // when coming from /home. If the cache is missing (direct URL, cleared
   // storage), we fall back to the fetch path.
-  const [learner, setLearner] = useState<CachedLearner | null>(() =>
-    readCachedLearner()
-  );
+  const [learner, setLearner] = useState<CachedLearner | null>(() => {
+    const cached = readCachedLearner();
+    if (!cached) return null;
+    if (isSupportedPair(cached)) return cached;
+    clearCachedLearner();
+    return null;
+  });
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [fetchDone, setFetchDone] = useState(false);
   const loadError = authError ?? fetchError;

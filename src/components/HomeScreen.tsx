@@ -20,19 +20,13 @@ interface Props {
 
 const TUTOR_BY_TARGET: Record<string, { name: string; label: string; callWord: string }> = {
   Japanese: { name: "Yuki", label: "日本語 tutor", callWord: "CALL" },
-  English: { name: "Sam", label: "English tutor", callWord: "전화" },
 };
 
-function formatLastSession(iso: string | null | undefined, nativeLang: string): string | null {
+function formatLastSession(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return null;
   const daysAgo = Math.floor((Date.now() - then) / (1000 * 60 * 60 * 24));
-  if (nativeLang === "Korean") {
-    if (daysAgo === 0) return "오늘 통화함";
-    if (daysAgo === 1) return "어제 통화함";
-    return `${daysAgo}일 전에 통화함`;
-  }
   if (daysAgo === 0) return "last called today";
   if (daysAgo === 1) return "last called yesterday";
   return `last called ${daysAgo} days ago`;
@@ -45,7 +39,7 @@ export default function HomeScreen({ learner }: Props) {
     label: `${learner.target_language} tutor`,
     callWord: "CALL",
   };
-  const lastSession = formatLastSession(learner.last_session_at, learner.native_language);
+  const lastSession = formatLastSession(learner.last_session_at);
 
   // Cache the active learner so /call can render instantly without a loading
   // screen on navigation.

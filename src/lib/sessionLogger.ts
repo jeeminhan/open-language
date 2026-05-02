@@ -50,6 +50,11 @@ type SessionLogEvent =
       messageCount: number;
       newWordsCount: number;
       errorsCount: number;
+    }
+  | {
+      type: "leveltest-auto-end-scheduled";
+      trigger: "token" | "phrase";
+      content: string;
     };
 
 const ENABLED =

@@ -1,10 +1,18 @@
 import { getAllLearners, createLearner } from "@/lib/db";
 import { getAuthUserId } from "@/lib/auth";
+import {
+  isSupportedLanguagePair,
+  unsupportedLanguagePairMessage,
+} from "@/lib/supportedLanguage";
 
 export async function GET() {
   const userId = await getAuthUserId();
   const learners = await getAllLearners(userId ?? undefined);
-  return Response.json(learners);
+  return Response.json(
+    learners.filter((learner) =>
+      isSupportedLanguagePair(learner.native_language, learner.target_language)
+    )
+  );
 }
 
 export async function POST(request: Request) {
@@ -14,6 +22,13 @@ export async function POST(request: Request) {
 
   if (!name || !nativeLanguage || !targetLanguage) {
     return Response.json({ error: "name, nativeLanguage, targetLanguage required" }, { status: 400 });
+  }
+
+  if (!isSupportedLanguagePair(nativeLanguage, targetLanguage)) {
+    return Response.json(
+      { error: unsupportedLanguagePairMessage() },
+      { status: 400 }
+    );
   }
 
   try {

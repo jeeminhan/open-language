@@ -106,7 +106,7 @@ export async function POST(req: Request) {
   if (!apiKey) return Response.json({ errors: [], tutorEval: null, unknownWords: [], errorClusters: [] });
 
   const learner = await getLearner(getActiveLearnerIdFromRequest(req), userId);
-  const lang = sanitizeForPrompt(learner?.target_language || "Korean", 60);
+  const lang = sanitizeForPrompt(learner?.target_language || "Japanese", 60);
   const native = sanitizeForPrompt(learner?.native_language || "English", 60);
 
   // Voice transcription often inserts spaces between every CJK token.

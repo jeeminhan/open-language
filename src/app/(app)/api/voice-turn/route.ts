@@ -77,7 +77,7 @@ export async function POST(request: Request) {
   let rawAnalyzer: string | null = null;
   const apiKey = process.env.LLM_API_KEY;
   const model = process.env.LLM_MODEL || "gemini-2.5-flash";
-  const lang = learner.target_language || "Korean";
+  const lang = learner.target_language || "Japanese";
   const native = learner.native_language || "English";
 
   const isEnglishTarget = lang.toLowerCase() === "english";

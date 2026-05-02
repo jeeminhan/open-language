@@ -25,6 +25,7 @@ export default function VocabularyPage() {
   const [vocab, setVocab] = useState<VocabItem[]>([]);
   const [filter, setFilter] = useState<Filter>("learning");
   const [search, setSearch] = useState("");
+  const [nowMs] = useState(() => Date.now());
 
   useEffect(() => {
     fetch("/api/vocabulary")
@@ -55,7 +56,6 @@ export default function VocabularyPage() {
     );
   }
 
-  const nowMs = Date.now();
   const learning = vocab.filter((v) => v.srs_state === "learning" || v.srs_state === "reviewing");
   const known = vocab.filter((v) => v.srs_state === "known");
   const dueToday = learning.filter(

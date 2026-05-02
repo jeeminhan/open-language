@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     return Response.json({ errors: [] });
   }
 
-  const lang = sanitizeForPrompt(targetLanguage || "Korean", 50);
+  const lang = sanitizeForPrompt(targetLanguage || "Japanese", 50);
   const native = sanitizeForPrompt(nativeLanguage || "English", 50);
   const lvl = sanitizeForPrompt(level || "A2", 10);
   const safeMessage = wrapUserInput(message, "learner_sentence");

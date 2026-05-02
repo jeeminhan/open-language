@@ -46,7 +46,7 @@ const LANGUAGE_CODES: Record<string, string> = {
 };
 
 function buildDrivingPrompt(adaptive: AdaptiveData | null): string {
-  const target = adaptive?.targetLanguage || "Korean";
+  const target = adaptive?.targetLanguage || "Japanese";
   const native = adaptive?.nativeLanguage || "English";
 
   let levelNote = adaptive?.registeredLevel || "A2";
@@ -117,6 +117,8 @@ DO NOT:
 export default function DrivePage() {
   const [adaptive, setAdaptive] = useState<AdaptiveData | null>(null);
   const [adaptiveLoaded, setAdaptiveLoaded] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
+  const [ending, setEnding] = useState(false);
 
   useEffect(() => {
     fetch("/api/practice")
@@ -130,11 +132,70 @@ export default function DrivePage() {
 
   const languageCode = adaptive
     ? LANGUAGE_CODES[adaptive.targetLanguage.toLowerCase()] || "en-US"
-    : "ko-KR";
+    : "ja-JP";
 
   const sessionIdRef = useRef<string | null>(null);
+  const sessionStartPromiseRef = useRef<Promise<string | null> | null>(null);
+  const pendingTurnSavesRef = useRef<Set<Promise<void>>>(new Set());
+  const endingRef = useRef(false);
   const turnCountRef = useRef(0);
   const savedTurnsRef = useRef<Set<string>>(new Set());
+
+  const ensureSessionStarted = useCallback(async (): Promise<string | null> => {
+    if (sessionIdRef.current) return sessionIdRef.current;
+    if (sessionStartPromiseRef.current) return sessionStartPromiseRef.current;
+
+    sessionStartPromiseRef.current = fetch("/api/session/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "drive" }),
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || typeof data.sessionId !== "string") {
+          throw new Error(data.error || "Could not start session.");
+        }
+        sessionIdRef.current = data.sessionId;
+        setHasSession(true);
+        return data.sessionId as string;
+      })
+      .catch(() => null)
+      .finally(() => {
+        sessionStartPromiseRef.current = null;
+      });
+
+    return sessionStartPromiseRef.current;
+  }, []);
+
+  const saveRawTurn = useCallback(
+    (turnNumber: number, userMessage: string, tutorResponse: string) => {
+      const save = (async () => {
+        const sessionId = sessionIdRef.current;
+        if (!sessionId) return;
+        const res = await fetch("/api/session/turn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            turnNumber,
+            userMessage,
+            tutorResponse,
+          }),
+        });
+        if (!res.ok) throw new Error("Could not save turn.");
+      })();
+
+      pendingTurnSavesRef.current.add(save);
+      void save
+        .catch(() => {
+          // /session/finish replays missing raw turns from the final transcript.
+        })
+        .finally(() => {
+          pendingTurnSavesRef.current.delete(save);
+        });
+    },
+    []
+  );
 
   const voice = useVoiceChat({
     systemPrompt: adaptiveLoaded ? buildDrivingPrompt(adaptive) : "",
@@ -154,26 +215,7 @@ export default function DrivePage() {
           savedTurnsRef.current.add(userMsg.id);
           turnCountRef.current += 1;
           const turnNumber = turnCountRef.current;
-          setTimeout(() => {
-            fetch("/api/voice-turn", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                sessionId: sessionIdRef.current,
-                turnNumber,
-                userMessage: userMsg.content,
-                tutorResponse: assistantMsg.content,
-                mode: "drive",
-              }),
-            })
-              .then((r) => r.json())
-              .then((data) => {
-                if (data.sessionId && !sessionIdRef.current) {
-                  sessionIdRef.current = data.sessionId;
-                }
-              })
-              .catch(() => {});
-          }, 1500);
+          saveRawTurn(turnNumber, userMsg.content, assistantMsg.content);
           break;
         }
       }
@@ -182,7 +224,10 @@ export default function DrivePage() {
 
   const endSession = useCallback(() => {
     const sid = sessionIdRef.current;
-    if (!sid) return;
+    if (!sid) {
+      setHasSession(false);
+      return;
+    }
     const body = JSON.stringify({ sessionId: sid });
     if (typeof navigator !== "undefined" && navigator.sendBeacon) {
       navigator.sendBeacon("/api/session/end", new Blob([body], { type: "application/json" }));
@@ -196,7 +241,50 @@ export default function DrivePage() {
     sessionIdRef.current = null;
     turnCountRef.current = 0;
     savedTurnsRef.current = new Set();
+    setHasSession(false);
   }, []);
+
+  const finishSession = useCallback(async () => {
+    if (endingRef.current) return;
+    endingRef.current = true;
+    setEnding(true);
+
+    const sid = sessionIdRef.current;
+    if (!sid) {
+      setEnding(false);
+      endingRef.current = false;
+      return;
+    }
+
+    await Promise.allSettled([...pendingTurnSavesRef.current]);
+    try {
+      const res = await fetch("/api/session/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: sid,
+          messages: voice.messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error("finish failed");
+    } catch {
+      await fetch("/api/session/end", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: sid }),
+      }).catch(() => {});
+    }
+
+    sessionIdRef.current = null;
+    turnCountRef.current = 0;
+    savedTurnsRef.current = new Set();
+    setHasSession(false);
+    setEnding(false);
+    endingRef.current = false;
+  }, [voice.messages]);
 
   useEffect(() => {
     const handleUnload = () => endSession();
@@ -208,23 +296,30 @@ export default function DrivePage() {
   }, [endSession]);
 
   const handlePauseResume = useCallback(async () => {
-    // Toggle voice connection without ending the session
+    if (ending) return;
+    if (!voice.voiceActive && !voice.voiceConnecting) {
+      const sessionId = await ensureSessionStarted();
+      if (!sessionId) return;
+    }
+    // Toggle voice connection without ending the session.
     await voice.toggleVoice();
-  }, [voice]);
+  }, [voice, ending, ensureSessionStarted]);
 
   const handleEnd = useCallback(async () => {
     if (voice.voiceActive) {
       await voice.toggleVoice();
     }
-    endSession();
-  }, [voice, endSession]);
+    await finishSession();
+    voice.reset();
+  }, [voice, finishSession]);
 
   const active = voice.voiceActive;
   const connecting = voice.voiceConnecting;
-  const hasSession = sessionIdRef.current !== null;
-  const paused = hasSession && !active && !connecting;
+  const paused = hasSession && !active && !connecting && !ending;
 
-  const statusText = connecting
+  const statusText = ending
+    ? "Saving recap..."
+    : connecting
     ? "Connecting..."
     : active
       ? voice.userSpeaking
@@ -234,7 +329,9 @@ export default function DrivePage() {
         ? "Paused"
         : "Tap to start";
 
-  const statusColor = connecting
+  const statusColor = ending
+    ? "var(--text-dim)"
+    : connecting
     ? "var(--text-dim)"
     : active
       ? voice.userSpeaking
@@ -256,8 +353,8 @@ export default function DrivePage() {
       {/* Giant primary button — START / PAUSE / RESUME */}
       <button
         onClick={handlePauseResume}
-        disabled={!adaptiveLoaded || connecting}
-        aria-label={active ? "Pause driving mode" : paused ? "Resume driving mode" : "Start driving mode"}
+        disabled={!adaptiveLoaded || connecting || ending}
+        aria-label={ending ? "Saving driving session" : active ? "Pause driving mode" : paused ? "Resume driving mode" : "Start driving mode"}
         className="rounded-full flex items-center justify-center transition-all"
         style={{
           width: "260px",
@@ -269,10 +366,10 @@ export default function DrivePage() {
           fontWeight: 700,
           marginBottom: "24px",
           animation: active && !voice.userSpeaking ? "pulse 1.8s ease-in-out infinite" : undefined,
-          cursor: connecting ? "wait" : "pointer",
+          cursor: connecting || ending ? "wait" : "pointer",
         }}
       >
-        {active ? "PAUSE" : paused ? "RESUME" : "START"}
+        {ending ? "SAVING" : active ? "PAUSE" : paused ? "RESUME" : "START"}
       </button>
 
       <div
@@ -292,6 +389,7 @@ export default function DrivePage() {
       {(active || paused) && (
         <button
           onClick={handleEnd}
+          disabled={ending}
           className="px-6 py-3 rounded-lg text-sm font-semibold transition-all"
           style={{
             background: "transparent",

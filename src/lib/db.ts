@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { isSupportedLanguagePair } from "./supportedLanguage";
 
 function uid(): string {
   return crypto.randomUUID();
@@ -19,6 +20,13 @@ export interface Learner {
   proficiency_level: string;
   correction_tolerance: string;
   created_at: string;
+}
+
+function isSupportedLearner(learner: Learner | null | undefined): learner is Learner {
+  return isSupportedLanguagePair(
+    learner?.native_language,
+    learner?.target_language
+  );
 }
 
 export interface Session {
@@ -182,20 +190,22 @@ export async function getLearner(id?: string, userId?: string): Promise<Learner 
     let q = supabase.from("learners").select("*").eq("id", id);
     if (userId) q = q.eq("user_id", userId);
     const { data } = await q.maybeSingle();
-    if (data) return data as Learner;
+    const learner = (data ?? undefined) as Learner | undefined;
+    if (isSupportedLearner(learner)) return learner;
   }
   // Fallback: get first learner for this user (or any if no userId)
   let q = supabase.from("learners").select("*");
   if (userId) q = q.eq("user_id", userId);
-  const { data } = await q.limit(1).maybeSingle();
-  return (data ?? undefined) as Learner | undefined;
+  const { data } = await q.order("created_at");
+  const learners = (data ?? []) as Learner[];
+  return learners.find(isSupportedLearner);
 }
 
 export async function getAllLearners(userId?: string): Promise<Learner[]> {
   let q = supabase.from("learners").select("*");
   if (userId) q = q.eq("user_id", userId);
   const { data } = await q.order("created_at");
-  return (data ?? []) as Learner[];
+  return ((data ?? []) as Learner[]).filter(isSupportedLearner);
 }
 
 export async function getSessions(limitOrLearnerId: number | string = 50, limit?: number): Promise<Session[]> {
@@ -364,6 +374,26 @@ export async function endSession(sessionId: string, summary?: string | null): Pr
   return data as Session;
 }
 
+export async function setSessionCounters(
+  sessionId: string,
+  counters: {
+    totalTurns: number;
+    errorsDetected: number;
+    correctionsGiven?: number;
+    codeSwitches?: number;
+  }
+): Promise<void> {
+  await supabase
+    .from("sessions")
+    .update({
+      total_turns: counters.totalTurns,
+      errors_detected: counters.errorsDetected,
+      corrections_given: counters.correctionsGiven ?? 0,
+      code_switches: counters.codeSwitches ?? 0,
+    })
+    .eq("id", sessionId);
+}
+
 export async function deleteSession(sessionId: string, learnerId: string): Promise<boolean> {
   // Verify ownership before deleting
   const { data: session } = await supabase
@@ -400,6 +430,18 @@ export async function createTurn(
     .select()
     .single();
   return data as Turn;
+}
+
+export async function updateTurnAnalysisJson(
+  sessionId: string,
+  turnNumber: number,
+  analysisJson: string
+): Promise<void> {
+  await supabase
+    .from("turns")
+    .update({ analysis_json: analysisJson })
+    .eq("session_id", sessionId)
+    .eq("turn_number", turnNumber);
 }
 
 export async function updateSessionCounters(

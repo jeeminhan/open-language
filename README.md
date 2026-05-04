@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# open-language
 
-## Getting Started
+A language tutor that actually remembers you — vocab you've looked up, mistakes you keep making, topics you care about — across every session.
 
-First, run the development server:
+> **Try it hosted:** [open-language-nine.vercel.app](https://open-language-nine.vercel.app)
+> No setup, free to start. Self-host below if you'd rather run your own.
+
+## Features
+
+- Persistent vocab tracking (e.g. 柿 / persimmon)
+- Error grouping by root cause (は vs が, etc.)
+- Interest-based personalization
+- Spaced-repetition quizzes
+- Bilingual EN ↔ JA practice
+
+## Hosted vs self-hosted
+
+This repo is the full app — Python CLI + Next.js dashboard. You can run everything locally with your own API keys (see Setup below).
+
+A hosted version is available at [open-language-nine.vercel.app](https://open-language-nine.vercel.app) for anyone who'd rather skip the setup. It runs the same code as this repo, with managed updates and shared infrastructure. Pricing TBD as the project matures.
+
+## Setup
+
+Self-hosting needs three things: the Next.js dashboard, the Python CLI, and a Supabase project.
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/jeeminhan/open-language.git
+cd open-language
+npm install
+```
+
+### 2. Supabase
+
+Create a free project at [supabase.com](https://supabase.com), then grab your **Project URL**, **anon key**, and **service role key** from Project Settings → API.
+
+### 3. Environment variables
+
+Create `.env.local` in the repo root:
+
+```bash
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# LLM (OpenAI-compatible — works with OpenAI, Together, OpenRouter, local Ollama, etc.)
+LLM_API_KEY=sk-...
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=gpt-4o-mini
+
+# Optional: web search for vocab examples
+GOOGLE_SEARCH_API_KEY=
+GOOGLE_SEARCH_CX=
+
+# Optional: comma-separated user IDs with admin access
+ADMIN_USER_IDS=
+```
+
+### 4. Run the dashboard
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 5. Python CLI (optional)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The CLI gives you voice chat and offline practice from the terminal.
 
-## Learn More
+```bash
+cd cli
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python main.py
+```
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The CLI reads the same `LLM_*` variables from `.env.local`. See `cli/` for voice mode, push-to-talk, and other options.

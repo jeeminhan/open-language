@@ -1,5 +1,7 @@
 # open-language
 
+![open-language](docs/assets/hero.png)
+
 A language tutor that actually remembers you — vocab you've looked up, mistakes you keep making, topics you care about — across every session.
 
 > **Try it hosted:** [open-language-nine.vercel.app](https://open-language-nine.vercel.app)

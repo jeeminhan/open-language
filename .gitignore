@@ -33,12 +33,17 @@ yarn-error.log*
 .pnpm-debug.log*
 logs/
 
+# Curriculum source snapshots
+data/raw/*
+!data/raw/.gitkeep
+
 # misc
 .DS_Store
 .gstack/
 .vercel
 .playwright-mcp/
 *.png
+!docs/assets/*.png
 *.pem
 /coverage
 .claude/

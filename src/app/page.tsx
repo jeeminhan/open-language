@@ -1,237 +1,177 @@
 import Link from "next/link";
 import styles from "./landing.module.css";
 
+const weekOneTags = [
+  { word: "カップ", meta: "#2,184", tone: "gold", x: 18, y: 56 },
+  { word: "お会計", meta: "#871", tone: "moss", x: 64, y: 63 },
+  { word: "ください", meta: "N5", tone: "river", x: 42, y: 31 },
+];
+
+const weekFourTags = [
+  { word: "カップ", meta: "#2,184", tone: "gold", kept: true, x: 13, y: 55 },
+  { word: "お会計", meta: "#871", tone: "moss", kept: true, x: 63, y: 63 },
+  { word: "アイス少なめ", meta: "learner phrase", tone: "moss", x: 44, y: 77 },
+  { word: "おかわり", meta: "#1,940", tone: "gold", x: 27, y: 40 },
+  { word: "常連", meta: "#3,402", tone: "river", x: 72, y: 34 },
+  { word: "ホット", meta: "top-1000", tone: "gold", x: 9, y: 24 },
+  { word: "おでん", meta: "winter menu", tone: "ember", x: 78, y: 55 },
+  { word: "〜ちゃう", meta: "N4 casual", tone: "river", x: 49, y: 19 },
+];
+
 export default function LandingPage() {
   return (
-    <div className={styles.landing}>
-      {/* ─── Hero ─── */}
-      <div className={styles.hero}>
-        <div className={styles.heroBadge}>
-          <span className={styles.badgeGreen}>●</span> A language tutor with a
-          memory
-        </div>
-        <h1 className={styles.heroTitle}>
-          open<span className={styles.accent}>-</span>language
-        </h1>
-        <p className={styles.subtitle}>
-          Every word you ask about, every mistake you keep making, every topic
-          you love &mdash; it remembers. ChatGPT doesn&apos;t.
-        </p>
-        <div className={styles.ctaRow}>
-          <Link href="/login" className={styles.ctaPrimary}>
-            Sign in with Google
-            <Arrow />
-          </Link>
-          <Link href="/home" className={styles.ctaSecondary}>
-            Try without signing in
-          </Link>
-        </div>
-        <p className={styles.heroNote}>
-          No sign-in for your first session.
-        </p>
-      </div>
-
-      {/* ─── ChatGPT comparison ─── */}
-      <section className={styles.section}>
-        <h2 className={styles.h2}>
-          ChatGPT forgets.{" "}
-          <span className={styles.dim}>open-language doesn&apos;t.</span>
-        </h2>
-        <p className={styles.sectionDesc}>
-          Every AI chatbot starts from scratch. Every session, forever.
-          open-language is the one that takes notes.
-        </p>
-
-        <div className={styles.compareGrid}>
-          <div className={styles.compareCard} data-kind="dim">
-            <div className={styles.compareHead}>
-              <span className={styles.compareIconBad}>✗</span>
-              <span className={styles.compareTitle}>ChatGPT &amp; friends</span>
-            </div>
-            <ul className={styles.compareList}>
-              <li>Forgets every word you asked last time</li>
-              <li>Same small talk, every session</li>
-              <li>No sense of your actual level</li>
-              <li>Can&apos;t quiz you on a thing</li>
-            </ul>
-          </div>
-          <div className={styles.compareCard} data-kind="accent">
-            <div className={styles.compareHead}>
-              <span className={styles.compareIconGood}>✓</span>
-              <span className={styles.compareTitle}>open-language</span>
-            </div>
-            <ul className={styles.compareList}>
-              <li>Saves every word you look up</li>
-              <li>Talks about things you actually like</li>
-              <li>Tracks the mistakes you keep making</li>
-              <li>Quizzes you on words you&apos;re forgetting</li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── What it remembers ─── */}
-      <section className={styles.section}>
-        <h2 className={styles.h2}>
-          Picks up right{" "}
-          <span className={styles.dim}>where you left off.</span>
-        </h2>
-        <p className={styles.sectionDesc}>
-          Three things that compound every time you come back.
-        </p>
-
-        <div className={styles.memoryGrid}>
-          <div className={styles.memoryCard}>
-            <div className={styles.memoryLabel} data-color="gold">
-              Words you asked about
-            </div>
-            <div className={styles.memoryEntry}>
-              <span className={styles.memoryWord}>
-                柿 <span className={styles.memoryPron}>(kaki)</span>
-              </span>
-              <span className={styles.memoryMeaning}>persimmon</span>
-            </div>
-            <div className={styles.memoryEntry}>
-              <span className={styles.memoryWord}>
-                空気を読む{" "}
-                <span className={styles.memoryPron}>(kuuki o yomu)</span>
-              </span>
-              <span className={styles.memoryMeaning}>reading the room</span>
-            </div>
-            <div className={styles.memoryEntry}>
-              <span className={styles.memoryWord}>
-                懐かしい{" "}
-                <span className={styles.memoryPron}>(natsukashii)</span>
-              </span>
-              <span className={styles.memoryMeaning}>
-                that nostalgic feeling
-              </span>
-            </div>
-            <div className={styles.memoryMeta}>
-              12 added this week · 3 due for review
-            </div>
+    <main className={styles.landing}>
+      <section className={styles.hero} aria-labelledby="landing-title">
+        <div className={styles.heroShell}>
+          <div className={styles.copy}>
+            <p className={styles.kicker}>Yuki · Japanese tutor · Koenji, 7:04am</p>
+            <h1 id="landing-title" className={styles.title}>
+              A coffee shop you keep coming back to, in{" "}
+              <span>Japanese</span>.
+            </h1>
+            <p className={styles.subtitle}>
+              Pick a scene. Learn it word by word. The barista uses it next
+              time.
+            </p>
           </div>
 
-          <div className={styles.memoryCard}>
-            <div className={styles.memoryLabel} data-color="ember">
-              Mistakes you keep making
+          <div className={styles.stage} aria-label="The same Japanese coffee shop in week one and week four">
+            <CafeFrame
+              label="week 1"
+              caption="first call"
+              tags={weekOneTags}
+              density="sparse"
+            />
+            <div className={styles.thread} aria-hidden="true">
+              <span>every lesson goes in here</span>
             </div>
-            <div className={styles.memoryEntry}>
-              <span className={styles.memoryWord}>は vs が</span>
-              <span className={styles.memoryCount}>×7</span>
-            </div>
-            <div className={styles.memoryEntry}>
-              <span className={styles.memoryWord}>Past-tense endings</span>
-              <span className={styles.memoryCount}>×5</span>
-            </div>
-            <div className={styles.memoryEntry}>
-              <span className={styles.memoryWord}>Keigo slip-ups</span>
-              <span className={styles.memoryCount}>×3</span>
-            </div>
-            <div className={styles.memoryMeta}>
-              Grouped by root cause, not random slip-ups
-            </div>
+            <CafeFrame
+              label="week 4"
+              caption="eighth call"
+              tags={weekFourTags}
+              density="full"
+            />
           </div>
 
-          <div className={styles.memoryCard}>
-            <div className={styles.memoryLabel} data-color="moss">
-              Stuff you&apos;re into
-            </div>
-            <div className={styles.memoryTags}>
-              <span>Anime</span>
-              <span>Ramen</span>
-              <span>Tokyo trip</span>
-              <span>Yoga</span>
-              <span>Coffee shops</span>
-              <span>Dogs</span>
-            </div>
-            <div className={styles.memoryMeta}>
-              So conversations never feel like homework
-            </div>
-          </div>
-        </div>
-
-        <div className={styles.quizCard}>
-          <div className={styles.quizHead}>
-            <span className={styles.quizBadge}>Quick quiz</span>
-            <span className={styles.quizMeta}>
-              You asked about this 3 days ago
-            </span>
-          </div>
-          <div className={styles.quizQ}>
-            Remember what <span className={styles.quizWord}>柿</span> means?
-          </div>
-          <div className={styles.quizOptions}>
-            <span className={styles.quizOpt}>A. pear</span>
-            <span className={styles.quizOpt} data-correct="true">
-              B. persimmon
-            </span>
-            <span className={styles.quizOpt}>C. apple</span>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── Final CTA ─── */}
-      <section className={styles.section}>
-        <div className={styles.closer}>
-          <h2 className={styles.h2}>
-            Say something{" "}
-            <span className={styles.dim}>in Japanese.</span>
-          </h2>
-          <p className={styles.closerNote}>
-            English &harr; Japanese. On your phone or your laptop. Free to
-            start.
-          </p>
-          <div className={styles.ctaRow}>
+          <div className={styles.ctaRow} aria-label="Start open-language">
             <Link href="/login" className={styles.ctaPrimary}>
-              Sign in with Google
-              <Arrow />
+              <GoogleMark />
+              <span>Sign in with Google</span>
             </Link>
             <Link href="/home" className={styles.ctaSecondary}>
-              Try without signing in
+              try one call without signing in
+            </Link>
+            <Link href="/demo" className={styles.ctaSecondary}>
+              watch the 60-second demo
             </Link>
           </div>
         </div>
       </section>
 
-      {/* ─── Footer ─── */}
       <footer className={styles.footer}>
-        <p className={styles.footerTitle}>open-language</p>
-        <p className={styles.footerDesc}>
-          A language tutor that remembers your 柿 from last Tuesday.
-        </p>
-        <p className={styles.footerTech}>
-          Open source &middot;{" "}
-          <a
-            href="https://github.com/jeeminhan/open-language"
-            target="_blank"
-            rel="noreferrer"
-            className={styles.footerLink}
-          >
-            GitHub
-          </a>
-        </p>
+        <span>open-language</span>
+        <a href="https://github.com/jeeminhan/open-language" target="_blank" rel="noreferrer">
+          GitHub
+        </a>
+        <Link href="/about/data">data sources</Link>
       </footer>
+    </main>
+  );
+}
+
+function CafeFrame({
+  label,
+  caption,
+  tags,
+  density,
+}: {
+  label: string;
+  caption: string;
+  tags: Array<{
+    word: string;
+    meta: string;
+    tone: string;
+    kept?: boolean;
+    x: number;
+    y: number;
+  }>;
+  density: "sparse" | "full";
+}) {
+  const isFull = density === "full";
+
+  return (
+    <div className={styles.frame} data-density={density}>
+      <div className={styles.frameHeader}>
+        <span>{label}</span>
+        <small>{caption}</small>
+      </div>
+
+      <div className={styles.cafeScene}>
+        <div className={styles.window}>
+          <span>高円寺</span>
+        </div>
+        <div className={styles.lamp} />
+        <div className={styles.menuBoard}>
+          <span>menu</span>
+          <b>コーヒー</b>
+          <b>ラテ</b>
+          <b>トースト</b>
+          {isFull && (
+            <>
+              <b>ホット</b>
+              <b>おでん</b>
+              <b>おかわり</b>
+            </>
+          )}
+        </div>
+        <div className={styles.barista} />
+        <div className={styles.counter}>
+          <i />
+          <i />
+          {isFull && (
+            <>
+              <i />
+              <i />
+              <i />
+            </>
+          )}
+        </div>
+        <div className={styles.register} />
+        {isFull && (
+          <>
+            <div className={styles.regular} />
+            <div className={styles.coat} />
+            <div className={styles.doorCustomer} />
+            <div className={styles.noteOne}>you ordered less ice yesterday</div>
+            <div className={styles.noteTwo}>〜ちゃう showed up again</div>
+          </>
+        )}
+        <div className={styles.noteSeed}>ordered with ください</div>
+
+        {tags.map((tag) => (
+          <div
+            key={`${label}-${tag.word}`}
+            className={styles.vocabTag}
+            data-tone={tag.tone}
+            data-kept={tag.kept ? "true" : undefined}
+            style={{ left: `${tag.x}%`, top: `${tag.y}%` }}
+          >
+            <strong>{tag.word}</strong>
+            <em>{tag.meta}</em>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-/* ─── Small helpers ─── */
-
-function Arrow() {
+function GoogleMark() {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5 12h14" />
-      <path d="m12 5 7 7-7 7" />
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
     </svg>
   );
 }

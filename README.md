@@ -9,6 +9,16 @@ A language tutor that actually remembers you — vocab you've looked up, mistake
 
 ---
 
+## See it in 60 seconds
+
+A short Japanese conversation between a tutor and a learner. Watch the right-hand panel — every word, grammar pattern, and mistake is captured, and the next session uses that memory.
+
+<video src="https://github.com/jeeminhan/open-language/raw/main/docs/assets/demo.mp4" controls width="720"></video>
+
+[▶ Watch the live demo](https://open-language-nine.vercel.app/demo) · [Download the video](docs/assets/demo.mp4)
+
+---
+
 ## Status & related work
 
 `open-language` is the original full-stack app: persistent learner memory, Next.js dashboard, Python CLI, Supabase backend.

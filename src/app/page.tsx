@@ -18,16 +18,24 @@ export default function LandingPage() {
           you love &mdash; it remembers. ChatGPT doesn&apos;t.
         </p>
         <div className={styles.ctaRow}>
-          <Link href="/login" className={styles.ctaPrimary}>
-            Sign in with Google
+          <Link href="/demo" className={styles.ctaPrimary}>
+            Watch the 60-second demo
             <Arrow />
+          </Link>
+          <Link href="/login" className={styles.ctaSecondary}>
+            Sign in with Google
           </Link>
           <Link href="/home" className={styles.ctaSecondary}>
             Try without signing in
           </Link>
-          <Link href="/demo" className={styles.ctaSecondary}>
-            Watch the 60-second demo
-          </Link>
+          <a
+            href="https://github.com/jeeminhan/open-language"
+            target="_blank"
+            rel="noreferrer"
+            className={styles.ctaSecondary}
+          >
+            GitHub ↗
+          </a>
         </div>
         <p className={styles.heroNote}>
           No sign-in for your first session.
@@ -186,9 +194,12 @@ export default function LandingPage() {
             start.
           </p>
           <div className={styles.ctaRow}>
-            <Link href="/login" className={styles.ctaPrimary}>
-              Sign in with Google
+            <Link href="/demo" className={styles.ctaPrimary}>
+              Watch the 60-second demo
               <Arrow />
+            </Link>
+            <Link href="/login" className={styles.ctaSecondary}>
+              Sign in with Google
             </Link>
             <Link href="/home" className={styles.ctaSecondary}>
               Try without signing in

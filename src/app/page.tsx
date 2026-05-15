@@ -25,6 +25,9 @@ export default function LandingPage() {
           <Link href="/home" className={styles.ctaSecondary}>
             Try without signing in
           </Link>
+          <Link href="/demo" className={styles.ctaSecondary}>
+            Watch the 60-second demo
+          </Link>
         </div>
         <p className={styles.heroNote}>
           No sign-in for your first session.

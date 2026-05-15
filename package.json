@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "gen:demo-audio": "node --env-file=.env --env-file-if-exists=.env.local scripts/generate-demo-audio.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.2",
@@ -19,6 +20,7 @@
     "recharts": "^3.8.1"
   },
   "devDependencies": {
+    "@google/genai": "^1.52.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

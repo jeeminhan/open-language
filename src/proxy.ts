@@ -1,13 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = new Set(["/", "/login", "/signup", "/onboarding"]);
+const PUBLIC_PATHS = new Set(["/", "/login", "/signup", "/onboarding", "/demo"]);
 const PUBLIC_PREFIXES = [
   "/login/",
   "/signup/",
   "/onboarding/",
   "/auth/",
   "/_next/",
+  "/demo/",
 ];
 
 const PUBLIC_API_PREFIXES = [

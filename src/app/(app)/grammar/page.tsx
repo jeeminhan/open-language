@@ -1,6 +1,7 @@
 import { getLearner, getGrammar } from "@/lib/db";
 import { getAuthUserId } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export default async function GrammarPage() {
   const learnerId = cookieStore.get("active_learner")?.value;
   const userId = await getAuthUserId();
   const learner = await getLearner(learnerId, userId ?? undefined);
-  if (!learner) return <p style={{ color: "var(--text-dim)" }}>No data.</p>;
+  if (!learner) redirect("/home");
 
   const grammar = await getGrammar(learner.id);
 

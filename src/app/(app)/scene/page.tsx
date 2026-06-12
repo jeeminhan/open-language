@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { getAuthUserId } from "@/lib/auth";
 import {
   getDueGrammar,
@@ -19,15 +20,7 @@ export default async function ScenePage() {
   const userId = await getAuthUserId();
   const learner = await getLearner(learnerId, userId ?? undefined);
 
-  if (!learner) {
-    return (
-      <div className="card">
-        <p style={{ color: "var(--text-dim)" }}>
-          No learner profile found. Start from home first.
-        </p>
-      </div>
-    );
-  }
+  if (!learner) redirect("/home");
 
   if (!learner.target_language.toLowerCase().includes("japanese")) {
     return (

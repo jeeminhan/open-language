@@ -60,8 +60,9 @@ type SessionLogEvent =
     }
   | {
       type: "leveltest-auto-end-scheduled";
-      trigger: "token" | "phrase";
-      content: string;
+      trigger: "exchange-cap";
+      userTurnCount: number;
+      cap: number;
     };
 
 const ENABLED =

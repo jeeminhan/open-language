@@ -20,6 +20,11 @@ export interface CallSummary {
     level: string;
     justification: string;
     seedWords: string[];
+    /**
+     * True when the assessment could not be obtained and the level is a
+     * fallback, not a real placement. Drives the degraded-state message.
+     */
+    assessmentFailed?: boolean;
   } | null;
   /** Whether the level-test assessment is still in flight. */
   levelTestPending?: boolean;
@@ -355,6 +360,7 @@ interface LevelTestProps {
 
 function LevelTestRecap({ summary, onCallAgain, onDone, onSignIn }: LevelTestProps) {
   const pending = summary.levelTestPending === true || summary.levelTest == null;
+  const assessmentFailed = summary.levelTest?.assessmentFailed === true;
   const level = summary.levelTest?.level ?? null;
   const justification = summary.levelTest?.justification ?? null;
   const seedWords = summary.levelTest?.seedWords ?? [];
@@ -431,6 +437,22 @@ function LevelTestRecap({ summary, onCallAgain, onDone, onSignIn }: LevelTestPro
             }}
           >
             placing you now — one moment.
+          </p>
+        ) : assessmentFailed ? (
+          <p
+            data-testid="leveltest-degraded"
+            style={{
+              fontFamily: "var(--font-caveat), cursive",
+              fontSize: 15,
+              color: "var(--ember)",
+              lineHeight: 1.35,
+              margin: 0,
+              paddingLeft: 10,
+              borderLeft: "2px dashed var(--ember)",
+            }}
+          >
+            Couldn&apos;t assess your level — starting you at {level ?? "A2"} for
+            now. Call again when you&apos;re ready and we&apos;ll try once more.
           </p>
         ) : (
           <>

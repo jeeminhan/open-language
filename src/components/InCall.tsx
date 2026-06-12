@@ -29,20 +29,18 @@ import CallControls from "./CallControls";
 import SaveToast from "./SaveToast";
 import type { CallSummary } from "./CallRecap";
 import { logSessionEvent } from "@/lib/sessionLogger";
+import {
+  shouldEndLevelTest,
+  LEVEL_TEST_EXCHANGE_CAP,
+} from "@/lib/levelAssess";
 
 const MAX_DRILL_WORDS = 5;
 const ROUTING_GRACE_MESSAGES = 2;
 
-// Silent control token the level-test prompt appends to its final closing
-// message. We strip it from anything user-visible and use its appearance as
-// the trigger to auto-end the call.
-const LEVELTEST_DONE_TOKEN = "[[LEVELTEST_DONE]]";
-const LEVELTEST_DONE_REGEX = /\s*\[\[LEVELTEST_DONE\]\]\s*/g;
+// After the learner's Nth exchange the level test ends deterministically,
+// client-side — no LLM end signal. We wait a beat so the tutor's closing line
+// plays out before hanging up.
 const LEVELTEST_END_DELAY_MS = 1500;
-
-function stripLevelTestToken(content: string): string {
-  return content.replace(LEVELTEST_DONE_REGEX, "").trim();
-}
 
 interface Learner {
   id: string;
@@ -84,7 +82,7 @@ export default function InCall({ learner, onEnd }: Props) {
   const sessionStartPromiseRef = useRef<Promise<string | null> | null>(null);
   const pendingTurnSavesRef = useRef<Set<Promise<void>>>(new Set());
   // One-shot guard: ensures the level-test auto-end fires at most once even if
-  // the closing message re-renders or the token appears in stripped form.
+  // the message list re-renders after the cap is reached.
   const levelTestEndScheduledRef = useRef(false);
 
   // Per-call analytics — populated as turns finalize and surfaced in the recap.
@@ -482,7 +480,7 @@ export default function InCall({ learner, onEnd }: Props) {
     const sessionId = sessionIdRef.current;
     const messages = voice.messages.map((m) => ({
       ...m,
-      content: stripLevelTestToken(m.content),
+      content: m.content.trim(),
     }));
     logSessionEvent({
       type: "call-ended",
@@ -638,66 +636,43 @@ export default function InCall({ learner, onEnd }: Props) {
         }
       : undefined;
 
+  // Single learner (user-role) exchange count — drives both the level-test
+  // progress strip and the deterministic end-cap decision below.
+  const userTurnCount = voice.messages.filter((m) => m.role === "user").length;
+
   const levelTestState: LevelTestState | undefined = isFirstCall
     ? {
-        // step counter advances with each user turn (cap at 5)
-        step: Math.min(
-          voice.messages.filter((m) => m.role === "user").length,
-          5
-        ) || 1,
-        total: 5,
+        // step counter advances with each user turn (cap at the exchange cap)
+        step: Math.min(userTurnCount, LEVEL_TEST_EXCHANGE_CAP) || 1,
+        total: LEVEL_TEST_EXCHANGE_CAP,
       }
     : undefined;
 
   // Captions show only what the tutor is saying — last two tutor turns.
   // Previous turn lingers dim until a new one arrives and pushes it off.
-  // Strip the level-test end-signal token from anything user-visible.
   const tutorMessages = voice.messages
     .filter((m) => m.role === "assistant")
-    .map((m) => ({ ...m, content: stripLevelTestToken(m.content) }))
+    .map((m) => ({ ...m, content: m.content.trim() }))
     .filter((m) => m.content.length > 0);
   const currentTutorMessage = tutorMessages[tutorMessages.length - 1] ?? null;
   const previousTutorMessage =
     tutorMessages.length >= 2 ? tutorMessages[tutorMessages.length - 2] : null;
 
-  // Auto-end the call when the level-test tutor emits an end signal. Two
-  // sources, scanned across ALL assistant messages so a trailing user message
-  // doesn't hide the assistant's closing line:
-  //   1. The [[LEVELTEST_DONE]] sentinel from the prompt (preferred).
-  //   2. Phrase fallback for cases where the model drops the token but says
-  //      its closing line ("I have a sense of where you are" / 画面をタップ).
-  // We wait a beat so the closing line plays out, then hang up. One-shot.
+  // Deterministic client-side end for the level test: after the learner's Nth
+  // (LEVEL_TEST_EXCHANGE_CAP) user-role exchange, end the call ourselves — no
+  // LLM end signal. Reuses the same user-turn count that drives levelTestState.
+  // We wait a beat so the tutor's closing line plays out, then hang up.
+  // One-shot via levelTestEndScheduledRef so the end fires at most once.
   useEffect(() => {
     if (!isFirstCall) return;
     if (levelTestEndScheduledRef.current) return;
-    let trigger: "token" | "phrase" | null = null;
-    let triggeredContent = "";
-    for (let i = voice.messages.length - 1; i >= 0; i--) {
-      const m = voice.messages[i];
-      if (m.role !== "assistant") continue;
-      if (m.content.includes(LEVELTEST_DONE_TOKEN)) {
-        trigger = "token";
-        triggeredContent = m.content;
-        break;
-      }
-      const lc = m.content.toLowerCase();
-      if (
-        m.content.includes("画面をタップ") ||
-        m.content.includes("画面を タップ") ||
-        lc.includes("tap end") ||
-        lc.includes("i have a sense of where you are")
-      ) {
-        trigger = "phrase";
-        triggeredContent = m.content;
-        // keep scanning earlier — token in an older message would still win
-      }
-    }
-    if (!trigger) return;
+    if (!shouldEndLevelTest(userTurnCount, LEVEL_TEST_EXCHANGE_CAP)) return;
     levelTestEndScheduledRef.current = true;
     logSessionEvent({
       type: "leveltest-auto-end-scheduled",
-      trigger,
-      content: triggeredContent.slice(0, 200),
+      trigger: "exchange-cap",
+      userTurnCount,
+      cap: LEVEL_TEST_EXCHANGE_CAP,
     });
     const t = setTimeout(() => {
       if (!isMountedRef.current) return;
@@ -706,7 +681,7 @@ export default function InCall({ learner, onEnd }: Props) {
     return () => clearTimeout(t);
     // handleEnd is stable enough for this trigger; deps intentionally narrow.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voice.messages, isFirstCall]);
+  }, [userTurnCount, isFirstCall]);
 
   // Watch user + tutor messages and route to an agenda. Three signal tiers:
   //   1. Explicit user keyword (English or target-language) — strongest

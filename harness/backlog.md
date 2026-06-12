@@ -19,6 +19,10 @@ The "nothing commits to the database" complaint. `session/finish` runs 6 LLM pas
 - Walk all five HARNESS.md journeys at 375/768/1440; fix anything broken or visually off.
 - Landing → demo → guest call path must be flawless; that is the interview demo.
 
+## Out-of-contract findings (from QA)
+- **Supabase schema drift (2026-06-12, from contract-001 QA):** the `supabase-curriculum.sql` migration was never applied to the live project — `bootstrap_learner_curriculum_state(p_cefr_level, p_learner_id)` is missing from the schema cache, so `curriculumBootstrap.ok=false` on every assess call. Best-effort/`.catch`, so nothing user-facing breaks, but it means curriculum bootstrap is a no-op. Apply the migration (or drop the call) when item 2 / curriculum is picked up.
+- **DB was paused (2026-06-12):** the Supabase project had auto-paused (NXDOMAIN) — the actual root cause of "nothing commits to the database." Restored this session. If it pauses again, the whole app's persistence dies silently (writes are `.catch(() => null)`). Consider a startup health check that surfaces an unreachable DB instead of swallowing it (candidate for item 2).
+
 ## Parked (do not pick up without explicit ask)
 - Curriculum Phase 0 data ingestion (2–4 week content project; app runs on the Koenji fallback lesson meanwhile).
 - Reviving any pruned mode (alongside/drive/listen/interests/etc. — all in git history).

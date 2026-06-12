@@ -40,6 +40,61 @@ function readActiveLearnerId(): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+type FixtureKind = "leveltest-success" | "leveltest-failed";
+
+function readFixtureParam(): FixtureKind | null {
+  if (typeof window === "undefined") return null;
+  const value = new URLSearchParams(window.location.search).get("fixture");
+  if (value === "leveltest-success" || value === "leveltest-failed") {
+    return value;
+  }
+  return null;
+}
+
+/**
+ * Build a hardcoded level-test recap summary for QA. Fixture mode bypasses the
+ * live voice call entirely: no DB writes, no LLM calls — it only feeds the
+ * recap UI a deterministic CallSummary so the evaluator can verify the recap
+ * without driving live audio.
+ */
+function buildFixtureSummary(kind: FixtureKind): CallSummary {
+  const base = {
+    tutorName: "Yuki",
+    targetLanguage: "Japanese",
+    nativeLanguage: "English",
+    elapsedSec: 184,
+    messages: [],
+    newWords: [],
+    errorsFoundCount: 0,
+    sessionId: null,
+    levelTestPending: false,
+    curriculumLesson: null,
+  } satisfies Partial<CallSummary>;
+
+  if (kind === "leveltest-success") {
+    return {
+      ...base,
+      levelTest: {
+        level: "B1",
+        justification:
+          "Handled past tense and simple opinions well; some particle slips on longer sentences.",
+        seedWords: [],
+        assessmentFailed: false,
+      },
+    } as CallSummary;
+  }
+
+  return {
+    ...base,
+    levelTest: {
+      level: "A2",
+      justification: "",
+      seedWords: [],
+      assessmentFailed: true,
+    },
+  } as CallSummary;
+}
+
 function pickLearner(learners: Learner[]): Learner | null {
   const supported = learners.filter(isSupportedPair);
   if (supported.length === 0) return null;
@@ -54,6 +109,14 @@ function pickLearner(learners: Learner[]): Learner | null {
 export default function CallPage() {
   const router = useRouter();
   const { ready, error: authError } = useAuthReady();
+
+  // QA fixture mode: ?fixture=leveltest-success|leveltest-failed renders the
+  // level-test recap directly with a hardcoded summary. No auth, no live call,
+  // no DB writes, no LLM calls. Read once on mount so it's stable.
+  const [fixture] = useState<FixtureKind | null>(() => readFixtureParam());
+  if (fixture) {
+    return <FixtureRecap kind={fixture} />;
+  }
 
   // Seed with the cached learner on first render so we skip the loading screen
   // when coming from /home. If the cache is missing (direct URL, cleared
@@ -157,6 +220,29 @@ export default function CallPage() {
 }
 
 /**
+ * QA-only: renders the level-test recap from a hardcoded fixture summary so the
+ * evaluator can verify the recap UI without live audio. Inert in production
+ * terms — no DB writes, no LLM calls.
+ */
+function FixtureRecap({ kind }: { kind: FixtureKind }) {
+  const router = useRouter();
+  const summary = buildFixtureSummary(kind);
+  const goHome = useCallback(() => router.push("/home"), [router]);
+  const goSignIn = useCallback(
+    () => router.push("/login?next=/home"),
+    [router]
+  );
+  return (
+    <CallRecap
+      summary={summary}
+      onCallAgain={goHome}
+      onDone={goHome}
+      onSignIn={goSignIn}
+    />
+  );
+}
+
+/**
  * Manages the call → recap phase within a single route.
  * A fresh `call` key remounts InCall when the user taps "Call again" so the
  * voice hook, timer, and ringing reset cleanly.
@@ -189,6 +275,7 @@ function CallFlow({ learner }: { learner: CachedLearner }) {
               level?: string;
               justification?: string;
               seedWords?: string[];
+              assessmentFailed?: boolean;
             } | null
           ) => {
             setRecap((prev) => {
@@ -205,12 +292,16 @@ function CallFlow({ learner }: { learner: CachedLearner }) {
                       seedWords: Array.isArray(data.seedWords)
                         ? data.seedWords
                         : [],
+                      // Honest degraded state — the server flags a fallback
+                      // placement so the recap doesn't fake a confident level.
+                      assessmentFailed: data.assessmentFailed === true,
                     }
                   : {
                       level: "A2",
                       justification:
                         "Couldn't reach the assessor — placing you at A2 for now.",
                       seedWords: [],
+                      assessmentFailed: true,
                     },
               };
             });
@@ -227,6 +318,7 @@ function CallFlow({ learner }: { learner: CachedLearner }) {
                     justification:
                       "Couldn't reach the assessor — placing you at A2 for now.",
                     seedWords: [],
+                    assessmentFailed: true,
                   },
                 }
               : prev

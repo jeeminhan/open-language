@@ -6,8 +6,9 @@
 Japanese language tutor with persistent learner memory (vocab/SRS, error patterns, grammar mastery). Next.js 16 + Supabase + Gemini Live voice. Deployed at open-language-nine.vercel.app.
 
 ## Run
-- Dev server: `npm run dev` → http://localhost:3000
+- Dev server: `npm run dev` → http://localhost:3000 (if a sibling app holds :3000, use `PORT=3007 npm run dev` and pass `EVAL_BASE_URL`/`BASE_URL` accordingly).
 - Env/stubs: `.env` + `.env.local` provide LLM_API_KEY (Gemini) and Supabase keys. Guest mode works without sign-in (login page → "continue as guest").
+- **Harness test user:** the probe and eval (`npm run probe:persistence`, `npm run eval:review`) sign in as a persistent admin-created user (`HARNESS_TEST_EMAIL`/`HARNESS_TEST_PASSWORD` in `.env`) instead of anonymous sign-in, to dodge Supabase's low anon rate limit. To (re)create it: `POST {SUPABASE_URL}/auth/v1/admin/users` with the service-role key, body `{"email":...,"password":...,"email_confirm":true}`. They still create/clean their own per-run `harness-test-*` learners under that user.
 
 ## Gates (deterministic, must pass before any QA round)
 - `./node_modules/.bin/tsc --noEmit`

@@ -153,9 +153,19 @@ function findSpuriousCatches(review, expect) {
 }
 
 // ---------------------------------------------------------------------------
-// Anonymous-auth cookie jar (same pattern as the persistence probe).
+// Persistent harness-user auth cookie jar (same pattern as the persistence
+// probe). Password sign-in of a fixed admin-created user avoids Supabase's
+// low anonymous-sign-in rate limit.
 // ---------------------------------------------------------------------------
+const HARNESS_EMAIL = process.env.HARNESS_TEST_EMAIL;
+const HARNESS_PASSWORD = process.env.HARNESS_TEST_PASSWORD;
+
 async function mintGuestCookies() {
+  if (!HARNESS_EMAIL || !HARNESS_PASSWORD) {
+    throw new Error(
+      "auth-failed — HARNESS_TEST_EMAIL / HARNESS_TEST_PASSWORD not set in .env"
+    );
+  }
   const jar = new Map();
   const client = createServerClient(SUPABASE_URL, ANON_KEY, {
     cookies: {
@@ -168,11 +178,14 @@ async function mintGuestCookies() {
     },
   });
   const { data, error } = await withTimeout(
-    client.auth.signInAnonymously(),
-    "signInAnonymously"
+    client.auth.signInWithPassword({
+      email: HARNESS_EMAIL,
+      password: HARNESS_PASSWORD,
+    }),
+    "signInWithPassword"
   );
   if (error || !data?.user?.id) {
-    throw new Error(`auth-failed — ${error?.message ?? "no anonymous user"}`);
+    throw new Error(`auth-failed — ${error?.message ?? "no harness user"}`);
   }
   return { userId: data.user.id, jar };
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import type { CurriculumLessonPlan } from "@/lib/curriculum/types";
+
 export type AgendaKind = "listening" | "drill" | "roleplay" | "guided" | "leveltest";
 
 export interface DrillState {
@@ -37,6 +39,7 @@ interface Props {
   roleplay?: RoleplayState;
   guided?: GuidedState;
   levelTest?: LevelTestState;
+  lessonPlan?: CurriculumLessonPlan | null;
 }
 
 export default function AgendaStrip({
@@ -48,6 +51,7 @@ export default function AgendaStrip({
   roleplay,
   guided,
   levelTest,
+  lessonPlan,
 }: Props) {
   return (
     <div className="flex flex-col gap-1.5 pt-1">
@@ -57,6 +61,7 @@ export default function AgendaStrip({
       {kind === "roleplay" && roleplay && <RoleplayBody state={roleplay} />}
       {kind === "guided" && guided && <GuidedBody state={guided} />}
       {kind === "leveltest" && levelTest && <LevelTestBody state={levelTest} />}
+      {kind !== "leveltest" && <CurriculumBody plan={lessonPlan} />}
     </div>
   );
 }
@@ -226,35 +231,106 @@ function GuidedBody({ state }: { state: GuidedState }) {
 }
 
 function LevelTestBody({ state }: { state: LevelTestState }) {
+  void state;
+  // Intentionally no numeric counter — the level test runs 5–7 adaptive
+  // exchanges and Gemini Live's chunked transcripts make a per-message count
+  // wildly misleading. A static label + the breathing avatar carry the
+  // affordance instead.
   return (
-    <div className="flex items-center justify-between px-1.5">
+    <div className="flex items-center justify-center px-1.5">
       <span
         style={{
-          fontSize: 11,
-          color: "var(--text)",
-          letterSpacing: "0.02em",
-        }}
-      >
-        <span
-          style={{
-            color: "var(--text-dim)",
-            fontSize: 10,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-          }}
-        >
-          Assessing your level
-        </span>
-      </span>
-      <span
-        style={{
+          color: "var(--text-dim)",
           fontSize: 10,
-          color: "var(--gold)",
-          fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
         }}
       >
-        {state.step} / {state.total}
+        Assessing your level
       </span>
+    </div>
+  );
+}
+
+function CurriculumBody({ plan }: { plan?: CurriculumLessonPlan | null }) {
+  if (!plan || (plan.vocab.length === 0 && plan.grammar.length === 0)) {
+    return null;
+  }
+
+  const chips = [
+    ...plan.vocab.slice(0, 3).map((item) => ({
+      key: item.id,
+      label: item.headword,
+      meta: item.frequencyRank ? `#${item.frequencyRank}` : item.jlptLevel ?? "",
+      tone: "gold",
+    })),
+    ...plan.grammar.slice(0, 1).map((item) => ({
+      key: item.id,
+      label: item.name,
+      meta: item.jlptLevel,
+      tone: "river",
+    })),
+  ];
+
+  return (
+    <div className="flex items-center gap-1.5 overflow-hidden px-1.5">
+      <span
+        style={{
+          flex: "0 0 auto",
+          color: "var(--text-dim)",
+          fontSize: 9,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+        }}
+      >
+        Today
+      </span>
+      <div className="flex min-w-0 flex-1 gap-1 overflow-hidden">
+        {chips.map((chip) => (
+          <span
+            key={chip.key}
+            style={{
+              minWidth: 0,
+              display: "inline-flex",
+              alignItems: "baseline",
+              gap: 4,
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              padding: "2px 6px",
+              color: "var(--text)",
+              fontSize: 10,
+              lineHeight: 1.2,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            <span
+              style={{
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                fontFamily:
+                  "var(--font-geist-mono), ui-monospace, monospace",
+              }}
+            >
+              {chip.label}
+            </span>
+            {chip.meta && (
+              <span
+                style={{
+                  color: chip.tone === "river" ? "var(--river)" : "var(--gold)",
+                  fontFamily:
+                    "var(--font-geist-mono), ui-monospace, monospace",
+                  fontSize: 9,
+                }}
+              >
+                {chip.meta}
+              </span>
+            )}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

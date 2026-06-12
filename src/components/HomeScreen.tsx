@@ -127,6 +127,19 @@ export default function HomeScreen({ learner }: Props) {
         </div>
 
         <Link
+          href="/scene"
+          className="transition-opacity hover:opacity-100"
+          style={{
+            fontSize: 13,
+            color: "var(--gold)",
+            opacity: 0.9,
+            textDecoration: "none",
+          }}
+        >
+          start today&apos;s scene →
+        </Link>
+
+        <Link
           href="/dashboard"
           className="transition-opacity hover:opacity-100"
           style={{

@@ -1,6 +1,7 @@
 "use client";
 
 import type { VoiceMessage } from "@/hooks/useVoiceChat";
+import type { CurriculumLessonPlan } from "@/lib/curriculum/types";
 
 export interface CallSummary {
   tutorName: string;
@@ -22,6 +23,8 @@ export interface CallSummary {
   } | null;
   /** Whether the level-test assessment is still in flight. */
   levelTestPending?: boolean;
+  /** Picker output that shaped the call agenda, if available. */
+  curriculumLesson?: CurriculumLessonPlan | null;
 }
 
 interface Props {
@@ -181,6 +184,47 @@ export default function CallRecap({
               </div>
             )}
 
+            {summary.curriculumLesson &&
+              (summary.curriculumLesson.vocab.length > 0 ||
+                summary.curriculumLesson.grammar.length > 0) && (
+                <div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-caveat), cursive",
+                      fontSize: 15,
+                      color: "var(--text-dim)",
+                      marginBottom: 6,
+                    }}
+                  >
+                    picked for today
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 6,
+                      paddingLeft: 10,
+                      borderLeft: "2px solid var(--river)",
+                    }}
+                  >
+                    {summary.curriculumLesson.vocab.slice(0, 5).map((item) => (
+                      <CurriculumChip
+                        key={item.id}
+                        label={item.headword}
+                        meta={item.frequencyRank ? `#${item.frequencyRank}` : item.jlptLevel ?? ""}
+                      />
+                    ))}
+                    {summary.curriculumLesson.grammar.slice(0, 2).map((item) => (
+                      <CurriculumChip
+                        key={item.id}
+                        label={item.name}
+                        meta={item.jlptLevel}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
             {highlights.length > 0 && (
               <div>
                 <div
@@ -274,6 +318,31 @@ export default function CallRecap({
         </button>
       </div>
     </div>
+  );
+}
+
+function CurriculumChip({ label, meta }: { label: string; meta: string }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "baseline",
+        gap: 5,
+        border: "1px solid var(--border)",
+        borderRadius: 6,
+        padding: "4px 7px",
+        fontSize: 12,
+        color: "var(--text)",
+        fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
+      }}
+    >
+      {label}
+      {meta && (
+        <span style={{ color: "var(--gold)", fontSize: 10 }}>
+          {meta}
+        </span>
+      )}
+    </span>
   );
 }
 

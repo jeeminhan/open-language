@@ -27,7 +27,8 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "open-language",
-  description: "AI language tutor that remembers your mistakes, adapts to your level, and gets smarter every session",
+  description:
+    "A voice call with a Japanese tutor where each frequency-ranked lesson fills in the same growing scene.",
 };
 
 export default function RootLayout({

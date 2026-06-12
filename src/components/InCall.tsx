@@ -6,6 +6,7 @@ import { useRingtone } from "@/hooks/useRingtone";
 import { getLanguageCode } from "@/lib/languages";
 import { buildCallPrompt } from "@/lib/prompts/ja/call";
 import { buildLevelTestPrompt } from "@/lib/prompts/ja/levelTest";
+import type { CurriculumLessonPlan } from "@/lib/curriculum/types";
 import {
   GREETING_FIRST_CALL,
   GREETING_RECURRING_CALL,
@@ -101,6 +102,9 @@ export default function InCall({ learner, onEnd }: Props) {
   // has them baked in if the user picks drill mode.
   const [drillWords, setDrillWords] = useState<string[]>([]);
   const [wordsReady, setWordsReady] = useState(false);
+  const [curriculumLesson, setCurriculumLesson] =
+    useState<CurriculumLessonPlan | null>(null);
+  const [curriculumReady, setCurriculumReady] = useState(false);
   const [ringDone, setRingDone] = useState(false);
 
   // Level-test mode is forced on the learner's very first call.
@@ -122,6 +126,7 @@ export default function InCall({ learner, onEnd }: Props) {
   // transition doesn't feel like a lag spike.
   const RING_DELAY_MS = 1800;
   const WORDS_FETCH_TIMEOUT_MS = 1500;
+  const CURRICULUM_FETCH_TIMEOUT_MS = 1500;
 
   const systemPrompt = useMemo(() => {
     if (isFirstCall) {
@@ -130,8 +135,9 @@ export default function InCall({ learner, onEnd }: Props) {
     return buildCallPrompt({
       level: learner.proficiency_level,
       drillWords,
+      curriculumLesson,
     });
-  }, [isFirstCall, learner.proficiency_level, drillWords]);
+  }, [isFirstCall, learner.proficiency_level, drillWords, curriculumLesson]);
 
   const languageCode = useMemo(
     () => getLanguageCode(learner.target_language),
@@ -276,6 +282,17 @@ export default function InCall({ learner, onEnd }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drillWordsKey, wordsReady]);
 
+  useEffect(() => {
+    if (!curriculumReady || !curriculumLesson) return;
+    logSessionEvent({
+      type: "curriculum-lesson-loaded",
+      scenarioLabel: curriculumLesson.scenarioLabel,
+      fallback: curriculumLesson.fallback,
+      vocab: curriculumLesson.vocab.map((item) => item.headword),
+      grammar: curriculumLesson.grammar.map((item) => item.name),
+    });
+  }, [curriculumLesson, curriculumReady]);
+
   const previousAgendaRef = useRef<DetectedAgenda | null>(null);
   useEffect(() => {
     const current: DetectedAgenda | null = isFirstCall ? "leveltest" : detectedAgenda;
@@ -355,6 +372,40 @@ export default function InCall({ learner, onEnd }: Props) {
     };
   }, []);
 
+  // Pre-fetch the picker output for today's canonical JP scene. The lesson plan
+  // is prompt context, so cap the wait just like SRS words.
+  useEffect(() => {
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      setCurriculumReady(true);
+    };
+    const cap = setTimeout(settle, CURRICULUM_FETCH_TIMEOUT_MS);
+    const params = new URLSearchParams({
+      scenarioId: "koenji-coffee-shop",
+      scenarioLabel: "Koenji coffee shop",
+      tags: "food,polite,transactional,everyday",
+      vocab: "5",
+      grammar: "1",
+    });
+    fetch(`/api/curriculum/next?${params.toString()}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { lesson?: CurriculumLessonPlan | null } | null) => {
+        if (!isMountedRef.current) return;
+        if (data?.lesson) setCurriculumLesson(data.lesson);
+        clearTimeout(cap);
+        settle();
+      })
+      .catch(() => {
+        clearTimeout(cap);
+        settle();
+      });
+    return () => {
+      clearTimeout(cap);
+    };
+  }, [CURRICULUM_FETCH_TIMEOUT_MS]);
+
   // Ringing timer runs in parallel with the words fetch.
   useEffect(() => {
     const t = setTimeout(() => setRingDone(true), RING_DELAY_MS);
@@ -366,7 +417,7 @@ export default function InCall({ learner, onEnd }: Props) {
   // determines which system prompt the session is created with.
   useEffect(() => {
     if (autoStartedRef.current) return;
-    if (!ringDone || !wordsReady || isFirstCall === null) return;
+    if (!ringDone || !wordsReady || !curriculumReady || isFirstCall === null) return;
     if (voice.voiceActive || voice.voiceConnecting) return;
     autoStartedRef.current = true;
     void (async () => {
@@ -374,7 +425,7 @@ export default function InCall({ learner, onEnd }: Props) {
       if (!sessionId) return;
       await voice.toggleVoice();
     })();
-  }, [voice, ringDone, wordsReady, isFirstCall, ensureSessionStarted]);
+  }, [voice, ringDone, wordsReady, curriculumReady, isFirstCall, ensureSessionStarted]);
 
   // Track elapsed time while session is active
   useEffect(() => {
@@ -491,6 +542,7 @@ export default function InCall({ learner, onEnd }: Props) {
       sessionId,
       levelTest: null,
       levelTestPending: isFirstCall === true,
+      curriculumLesson: isFirstCall ? null : curriculumLesson,
     };
     onEnd(summary);
   }
@@ -768,6 +820,7 @@ export default function InCall({ learner, onEnd }: Props) {
         roleplay={roleplayState}
         guided={guidedState}
         levelTest={levelTestState}
+        lessonPlan={isFirstCall ? null : curriculumLesson}
       />
 
       <div className="flex-1 flex flex-col items-center justify-center gap-8 py-8">

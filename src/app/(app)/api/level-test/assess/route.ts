@@ -10,6 +10,11 @@ import { getAuthUserId } from "@/lib/auth";
 import { sanitizeForPrompt, wrapUserInput } from "@/lib/promptSafety";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rateLimit";
 import { enforceBodySize, BODY_LIMITS } from "@/lib/bodyLimit";
+import {
+  normalizeAssessment,
+  parseJsonResponse,
+  type CefrLevel,
+} from "@/lib/levelAssess";
 
 interface IncomingMessage {
   role: "user" | "assistant";
@@ -17,43 +22,10 @@ interface IncomingMessage {
 }
 
 interface AssessmentResult {
-  level: "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
+  level: CefrLevel;
   justification: string;
   seedWords: string[];
   curriculumBootstrap?: CurriculumBootstrapResult | null;
-}
-
-const VALID_LEVELS = new Set(["A1", "A2", "B1", "B2", "C1", "C2"]);
-
-function parseJsonResponse(raw: string): unknown {
-  // Strip markdown fences (```json ... ``` or ``` ... ```)
-  let cleaned = raw.replace(/```json?\n?/gi, "").replace(/```/g, "").trim();
-  // Narrow to first { ... last } in case the model added prose around the JSON
-  const first = cleaned.indexOf("{");
-  const last = cleaned.lastIndexOf("}");
-  if (first !== -1 && last !== -1 && last > first) {
-    cleaned = cleaned.slice(first, last + 1);
-  }
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    try {
-      // Tolerate trailing commas
-      return JSON.parse(cleaned.replace(/,\s*]/g, "]").replace(/,\s*}/g, "}"));
-    } catch {
-      return null;
-    }
-  }
-}
-
-function hasTargetScript(s: string, lang: string): boolean {
-  if (!s) return false;
-  const l = lang.toLowerCase();
-  if (l.includes("japanese")) return /[぀-ヿ一-鿿]/.test(s);
-  if (l.includes("korean")) return /[가-힯]/.test(s);
-  if (l.includes("chinese")) return /[一-鿿]/.test(s);
-  if (l.includes("english")) return /[a-zA-Z]/.test(s);
-  return true;
 }
 
 function transcriptText(messages: IncomingMessage[]): string {
@@ -180,27 +152,12 @@ Be slightly conservative — when between two levels, pick the lower.`,
           assessError = "LLM returned empty response";
           console.error("[level-test/assess]", assessError, JSON.stringify(data).slice(0, 200));
         } else {
-          const parsed = parseJsonResponse(raw) as Partial<AssessmentResult> | null;
+          const parsed = parseJsonResponse(raw);
           if (!parsed || typeof parsed !== "object") {
             assessError = `Could not parse LLM JSON. Raw: ${raw.slice(0, 600)}`;
             console.error("[level-test/assess]", assessError);
           } else {
-            const level =
-              typeof parsed.level === "string" && VALID_LEVELS.has(parsed.level)
-                ? (parsed.level as AssessmentResult["level"])
-                : "A2";
-            const justification =
-              typeof parsed.justification === "string" && parsed.justification.trim()
-                ? parsed.justification.trim()
-                : "First call complete — placing you here based on the conversation.";
-            const seedWords = Array.isArray(parsed.seedWords)
-              ? (parsed.seedWords as unknown[])
-                  .filter((w): w is string => typeof w === "string" && w.trim().length > 0)
-                  .map((w) => w.trim())
-                  .filter((w) => hasTargetScript(w, targetLanguage))
-                  .slice(0, 5)
-              : [];
-            result = { level, justification, seedWords };
+            result = normalizeAssessment(parsed, targetLanguage);
           }
         }
       }

@@ -23,6 +23,11 @@ The "nothing commits to the database" complaint. `session/finish` runs 6 LLM pas
   - Hydration warning on the dev-only `/call?fixture=...` URL (move fixture read out of the useState initializer). Only matters if the demo visits that URL — it won't.
 - **Demo strategy:** lead with `/demo` (strongest, works); show a pre-set-up real call rather than improvising a cold guest sign-in live.
 
+## 4. Review-quality eval harness (Layer 2) — ✅ DONE 2026-06-12 (contract-003)
+- `npm run eval:review` drives 8 labeled transcripts through the real `session/finish` review, hybrid-scores (rule-based + LLM judge for fuzzy/keigo), writes `evals/report-latest.md` (gitignored). Pure scorer `src/lib/reviewScore.ts` + 13 unit tests. Guest-only, self-cleaning, `EVAL_BASE_URL` configurable. QA PASS (8/8, 100% catch-rate on the seed set).
+- Probe + eval now sign in as a persistent admin-created user (`HARNESS_TEST_EMAIL`/`PASSWORD` in `.env`) — see HARNESS.md "Harness test user" — to avoid Supabase's anon-signin 429.
+- Grow the dataset over time (add transcripts to `evals/transcripts/`); re-run after any prompt change to catch quality drift.
+
 ## Out-of-contract findings (from QA)
 - **Supabase schema drift (2026-06-12, from contract-001 QA):** the `supabase-curriculum.sql` migration was never applied to the live project — `bootstrap_learner_curriculum_state(p_cefr_level, p_learner_id)` is missing from the schema cache, so `curriculumBootstrap.ok=false` on every assess call. Best-effort/`.catch`, so nothing user-facing breaks, but it means curriculum bootstrap is a no-op. Apply the migration (or drop the call) when item 2 / curriculum is picked up.
 - **DB was paused (2026-06-12):** the Supabase project had auto-paused (NXDOMAIN) — the actual root cause of "nothing commits to the database." Restored this session. If it pauses again, the whole app's persistence dies silently (writes are `.catch(() => null)`). Consider a startup health check that surfaces an unreachable DB instead of swallowing it (candidate for item 2).

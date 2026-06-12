@@ -67,3 +67,53 @@ None. `src/app/call/page.tsx` already short-circuits fixture mode at the top of 
 ### QA notes
 - Evaluator: navigate directly to `/call?fixture=leveltest-success` and `/call?fixture=leveltest-failed` (dev server, NODE_ENV=development). Both render the level-test recap without auth or audio.
 - Production safety: exemption is hard-gated on `NODE_ENV === "production"` returning false, so `/call` stays fully auth-gated in prod regardless of query string.
+
+---
+
+# Generator state — contract-002 (Verify persistence E2E + dead-DB fails loudly)
+
+Mode: BUILD. Round 1. All three gates green; probe smoke-run PASS.
+
+## Files changed (why)
+
+- `src/lib/health.ts` — NEW. Pure `formatHealthResult({ok,error?,latencyMs?})` → `{status,body}` (200/`up`, 503/`down`+non-empty `error`, fallback error when none given, never echoes secrets). Import-safe: no Supabase at module load. `pingDatabase()` lazily `import("./supabase")`, runs a `head`/`count` on `learners` with a 5s `AbortSignal.timeout`, and `sanitizeError()` redacts URLs/postgres strings/32+ char tokens.
+- `src/app/(app)/api/health/route.ts` — NEW. GET handler; honors `x-harness-force-db-down: 1` only when `NODE_ENV !== "production"` (→ 503/down), else pings DB through `formatHealthResult`. No auth (proxy.ts already whitelists `/api/health`).
+- `src/lib/db.ts` — added `checkDbReachable()`: cheap `head`/`count` on `learners` with 5s timeout, returns `{reachable,error?}` WITHOUT `data ?? []` swallowing. No other query touched.
+- `src/app/(app)/dashboard/page.tsx` — added `searchParams` (Promise) prop; dev-only `?forceDbDown=1` (ignored in prod) → reachability false. Unreachable → distinct banner `<div data-testid="db-unreachable-banner">`; existing no-learner `<p>` now carries `data-testid="no-learner-state"`. Reachable + no param = unchanged behavior.
+- `scripts/probe-persistence.mjs` — NEW (plain ESM). Mints anon session via `@supabase/ssr` createServerClient + in-memory cookie jar (forwards exact `sb-*` cookies the dev server reads), creates ONE `harness-test-persist-<ts>` English→Japanese learner via service role (supplies `id: crypto.randomUUID()` — `learners.id` is not DB-defaulted), drives `/api/session/start` → 3×`/api/session/turn` → `/api/session/finish` (real Gemini review) over HTTP, asserts rows (sessions ended+turns>0+summary ≥1, turns ≥2, vocab ≥1, grammar ≥1, errors ≥1). Cleanup in `finally`, every delete scoped to captured learner id (turns via `.in('session_id', sessionIds)` for that learner's sessions; others `.eq('learner_id', learnerId)`/`.eq('id', learnerId)`). Granular reasons: `auth-failed` / `llm-failed` / `rows-missing:<table>` / `db-unreachable`. Self-reports `cleanup: deleted learner <id> + N rows; harness-test-* learners remaining: M`.
+- `package.json` — added `"probe:persistence": "node --env-file=.env --env-file-if-exists=.env.local scripts/probe-persistence.mjs"` (mirrors `gen:demo-audio`). NOT in `npm test`.
+- `tests/health/formatHealthResult.test.ts` — NEW (4 tests): up→200, down→503+error, fallback error, no-secret-leak.
+
+## Finish-route instrumentation decision
+Did NOT add a `persisted` summary to `session/finish/route.ts`. The probe asserts purely via fresh service-role db reads (Part A/B shared section permits leaving finish as-is). The route's per-write `.catch` wrappers are untouched — no behavior/response-shape change.
+
+## Gate outputs
+- `./node_modules/.bin/tsc --noEmit` → exit 0 (clean, no output).
+- `npm test` → `Test Files 6 passed (6) / Tests 33 passed (33)` (29 original level-assess + 4 new health). Exit 0. Probe NOT in vitest run.
+- `npm run build` → success; `/api/health` (ƒ) and `/dashboard` (ƒ) compiled. Exit 0.
+
+## Probe smoke-run (against running dev server)
+PASS. Per-table counts printed:
+- sessions (ended, turns>0, summary): 1 (expect ≥1)
+- turns: 3 (expect ≥2)
+- vocabulary: 8 (expect ≥1)
+- grammar_inventory: 6 (expect ≥1)
+- error_patterns: 1 (expect ≥1)
+Cleanup: `deleted learner 8f9c0766-... + 26 rows; harness-test-* learners remaining: 0`. Independent service-role read confirms `[]` (zero residual harness learners) after both the PASS run and the C3 fail run.
+
+## C3 fail-loud verified
+`NEXT_PUBLIC_SUPABASE_URL=https://invalid.example.invalid npm run probe:persistence` → exit 1, `PROBE FAIL: auth-failed — fetch failed`, finished in ~0.23s (no hang), cleanup ran (no learner created). Note: the auth client prints its own `TypeError: fetch failed` stack to stderr above the final `PROBE FAIL:` line — the exit code (non-zero) and the final granular reason are correct; the stack is cosmetic noise, not a hang.
+
+## C9 finding (isSupportedLearner)
+VERIFIED CORRECT — no fix needed. `src/lib/supportedLanguage.ts` `isSupportedLanguagePair` is an exact-match whitelist returning `true` only for `("English","Japanese")`. English→Japanese is NOT dropped. The probe PASS exercises this learner through the full write path, confirming behavior end-to-end.
+
+## Health UP/DOWN + dashboard testids (verified manually against dev server)
+- C6: `curl /api/health` → `{"status":"up","latencyMs":138}` HTTP 200, no secrets.
+- C7: `curl -H "x-harness-force-db-down: 1" /api/health` → `{"status":"down","error":"Forced DB-down (x-harness-force-db-down)"}` HTTP 503.
+- C8: with a minted guest session, `/dashboard?forceDbDown=1` → 200 renders `db-unreachable-banner` only; `/dashboard` (no param, no learner) → 200 renders `no-learner-state` only.
+
+## QA notes / focus areas for evaluator
+- C8 requires a guest session: proxy.ts (Next 16 renamed middleware → `src/proxy.ts`) redirects unauthenticated `/dashboard` to `/login`. In Playwright, log in as guest first (login page → "Try without an account"), THEN navigate to `/dashboard?forceDbDown=1`. Unauthenticated curl will 307-redirect.
+- C7 uses the request HEADER `x-harness-force-db-down: 1` (not a query param). C8 uses the query PARAM `?forceDbDown=1`. Both restart-free, both dev-only.
+- The probe makes ONE real (cheap) Gemini finish-review call per run and writes/cleans a single guest learner — contract-permitted. Re-running is safe and idempotent (fresh learner each time, self-cleaning).
+- Dev server left running and untouched; start command unchanged (`npm run dev` → :3000).

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import {
+  checkDbReachable,
   getLearner,
   getStats,
   getSessions,
@@ -54,7 +55,42 @@ function computeStreak(daysSet: Set<string>): number {
   return streak;
 }
 
-export default async function ProgressPage() {
+export default async function ProgressPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  // Dev-only injection so the unreachable state is drivable restart-free.
+  // Ignored in production.
+  const params = await searchParams;
+  const forceDbDown =
+    process.env.NODE_ENV !== "production" && params?.forceDbDown === "1";
+
+  const reachability = forceDbDown
+    ? { reachable: false, error: "Forced DB-down (forceDbDown)" }
+    : await checkDbReachable();
+
+  if (!reachability.reachable) {
+    return (
+      <div
+        className="card"
+        data-testid="db-unreachable-banner"
+        style={{
+          borderColor: "var(--ember)",
+          background: "rgba(196, 94, 74, 0.08)",
+        }}
+      >
+        <h2 className="text-base font-bold" style={{ color: "var(--ember)" }}>
+          Can&apos;t reach the database right now
+        </h2>
+        <p className="text-sm mt-1" style={{ color: "var(--text)" }}>
+          Your progress isn&apos;t loading. This is a connection problem, not an
+          empty account — your data is safe. Try again in a moment.
+        </p>
+      </div>
+    );
+  }
+
   const cookieStore = await cookies();
   const learnerId = cookieStore.get("active_learner")?.value;
   const userId = await getAuthUserId();
@@ -62,7 +98,7 @@ export default async function ProgressPage() {
   if (!learner) {
     return (
       <div className="card">
-        <p style={{ color: "var(--text-dim)" }}>
+        <p data-testid="no-learner-state" style={{ color: "var(--text-dim)" }}>
           No learner profile found. Start a conversation first.
         </p>
       </div>

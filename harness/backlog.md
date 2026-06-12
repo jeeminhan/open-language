@@ -9,7 +9,7 @@ The first-call level test has never worked. Three root causes, fix all:
 - **Silent failure**: every failure path degrades to "A2" with the real error hidden in an unrendered `debug` field. Surface assessment failures in `CallRecap` ("couldn't assess — using default") and log them.
 - QA criteria: API-level — POST a fixture transcript to `/api/level-test/assess`, get a non-default level with justification; UI — recap shows the level; failure injection (bad API key) shows the degraded-state message instead of a fake placement.
 
-## 2. Verify memory persistence end-to-end (P0)
+## 2. Verify memory persistence end-to-end (P0) — ✅ DONE 2026-06-12 (contract-002)
 The "nothing commits to the database" complaint. `session/finish` runs 6 LLM passes then persists vocab/errors/grammar — but every write is wrapped in `.catch(() => null)`, so failures vanish.
 - Instrument: collect per-write outcomes in `session/finish` and return a `persisted: {vocab: n, errors: n, grammar: n, failed: [...]}` summary; show counts in the recap.
 - Check the `isSupportedLearner` guard in `db.ts` — confirm it isn't silently dropping writes for valid learners.

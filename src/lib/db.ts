@@ -189,6 +189,27 @@ export function getActiveLearnerIdFromRequest(request: Request): string | undefi
 
 // ── Queries ──────────────────────────────────────────────
 
+// Lightweight reachability check used by the dashboard to distinguish
+// "database unreachable" from "no data yet". Unlike the other reads below,
+// this one does NOT swallow the error into `data ?? []` — an unreachable DB
+// must surface, not vanish.
+export async function checkDbReachable(): Promise<{ reachable: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from("learners")
+      .select("id", { count: "exact", head: true })
+      .limit(1)
+      .abortSignal(AbortSignal.timeout(5000));
+    if (error) return { reachable: false, error: error.message };
+    return { reachable: true };
+  } catch (err) {
+    return {
+      reachable: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 export async function getLearner(id?: string, userId?: string): Promise<Learner | undefined> {
   if (id) {
     let q = supabase.from("learners").select("*").eq("id", id);

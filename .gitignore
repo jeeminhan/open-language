@@ -51,3 +51,4 @@ data/raw/*
 # Local-only design references and tool configs
 Wireframes/
 .mcp.json
+evals/report-latest.md

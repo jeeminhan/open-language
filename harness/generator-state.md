@@ -117,3 +117,48 @@ VERIFIED CORRECT — no fix needed. `src/lib/supportedLanguage.ts` `isSupportedL
 - C7 uses the request HEADER `x-harness-force-db-down: 1` (not a query param). C8 uses the query PARAM `?forceDbDown=1`. Both restart-free, both dev-only.
 - The probe makes ONE real (cheap) Gemini finish-review call per run and writes/cleans a single guest learner — contract-permitted. Re-running is safe and idempotent (fresh learner each time, self-cleaning).
 - Dev server left running and untouched; start command unchanged (`npm run dev` → :3000).
+
+
+---
+
+# Generator state — contract-003 (Layer-2 review-quality eval harness)
+
+Mode: BUILD. Round 1. All three deterministic gates green. Smoke-tested against the live dev server on :3007.
+
+## Files changed / added (why)
+
+- `src/lib/reviewScore.ts` — NEW pure, network-free rule-based scorer (the unit-tested source of truth). Exports `tokenMatches`, `scoreErrorExpectation(review, {token})`, `scoreUnknownExpectation(review, word)`, `scoreGrammarExpectation(review, pattern)`, `findSpuriousCatches(review, expect)`, plus the `ReviewShape`/`ExpectShape` types. No network, no LLM, no DB. Substring matching against `errors[].observed|expected|pattern_description`, `unknownWords[].word`, `vocabularySeen[]`, `queuedForLearning[]`, `grammarPracticed[].pattern`.
+- `tests/eval-review/reviewScore.test.ts` — NEW Layer-1 vitest (13 tests) covering C7's five cases: (a) error token present in observed/expected/pattern_description → caught; (b) absent token → missed; (c) unknown word in any of unknownWords/vocabularySeen/queuedForLearning → caught; (d) grammar pattern in grammarPracticed[].pattern → caught; (e) findSpuriousCatches flags a review error matching no expectation; plus guard-transcript spurious + whitespace/empty-needle edge cases. Lands in the default gate (`tests/**/*.test.ts`); NOT under `tests/evals/**`.
+- `scripts/eval-review.mjs` — NEW plain-ESM runner mirroring `scripts/probe-persistence.mjs` (anon-auth cookie jar via @supabase/ssr, scoped service-role cleanup, withTimeout). Reads `EVAL_BASE_URL` (default `http://localhost:3000`). For each `evals/transcripts/*.json`: drives `/api/session/start → turn(s) → finish` over HTTP, captures `review`, scores HYBRID (rule-based first; LLM judge for `fuzzy:true`, AND as fallback on every rule-miss), writes `evals/report-latest.md`, prints summary. The tiny token-match helpers are DUPLICATED inline (runner has no `@/` alias) but kept in sync with the unit-tested `src/lib/reviewScore.ts`. Exit 0 on any reachable run (even 0% catch-rate); exit non-zero ONLY when it cannot run (missing env, guest-auth failure, or ALL transcripts failed). Judge lines written INTO the report (`judge: <transcript>/<expectation> → caught|missed (<reason>)`), both per-block and in a top "Judge invocations (all)" section. Judge uses structured output (`responseMimeType:application/json` + `responseSchema` + `thinkingConfig.thinkingBudget:0`), temperature 0, single expectation per call.
+- `evals/transcripts/*.json` — NEW 8 hand-authored labeled transcripts (full required spread): `particle-wa-ga` (が/を, rule), `transitive-intransitive` (電気が消しました, fuzzy→judge), `unknown-word-ask` (渋滞), `clean-correct` (て-form grammar credit + noErrors), `conjugation-yoki` (良き→よく, rule), `keigo-misuse` (ご覧になる double-keigo, fuzzy→judge), `loanword-guard` (NEGATIVE: コンビニ/アルバイト, noErrors), `te-form-request` (clean て-ください grammar credit). Each `{name, description, messages, expect}`; planted issues genuinely present in realistic learner Japanese.
+- `package.json` — added `"eval:review": "node --env-file=.env --env-file-if-exists=.env.local scripts/eval-review.mjs"` (same env-loading as `gen:demo-audio`/`probe:persistence`). NOT in `npm test`, NOT in the vitest include.
+- `evals/report-latest.md` — generated output (committed-or-gitignored: I did NOT add a gitignore entry since this dir is new and the repo isn't a git repo in this env; the orchestrator can decide. The file is regenerated on every run.).
+
+Safety fence honored: one captured learner id per transcript (`harness-test-eval-<name>-<ts>`, English→Japanese), every write/delete scoped to that id, cleanup in try/finally even on finish/judge failure, guest-only, never the production Vercel deployment. The only QA-mode LLM calls are (i) `session/finish` review over HTTP and (ii) the judge — both guest-only. Refactored mid-round to mint ONE anonymous guest session and reuse it across transcripts (each transcript still creates+cleans its OWN learner id) to dodge Supabase's per-hour `signInAnonymously` rate cap; this reduces auth calls from 8→1 per run.
+
+## Gate outputs
+
+- `./node_modules/.bin/tsc --noEmit` → `TSC_OK` (exit 0).
+- `npm test` → `Test Files 7 passed (7) / Tests 46 passed (46)` (was 33; +13 new in `tests/eval-review/`). All contract-001/002-era tests (health, level-assess) still green. `scripts/eval-review.mjs` not collected.
+- `npm run build` → succeeded; full route table printed, prerender + dynamic split intact.
+
+## Smoke-run result (`EVAL_BASE_URL=http://localhost:3007 npm run eval:review`)
+
+- Exit code: **0**. Report written to `evals/report-latest.md` (4.5 KB), regenerated/overwritten during the run.
+- Per-transcript ✓/✗ rows present; aggregate line present: **`Aggregate catch-rate: 6/6 (100%)`** on the transcripts that ran (5/8 — see caveat below). Every transcript that ran scored 100%: `が` caught (rule), `よく` caught (rule), て-form grammar credit caught (rule), keigo `ご覧になる` caught (fuzzy→**judge**), conjugation grammar caught (**judge-fallback** on rule-miss). Guard (`loanword-guard`) clean: zero `✗`, no fabricated-error miss.
+- **Judge fired: YES.** 2 judge calls; ≥1 `judge:` line in the report (`grep -i "judge:" evals/report-latest.md` → matches). One fuzzy-path (keigo) + one fallback-on-rule-miss (conjugation grammar).
+- Soft spurious note rendered correctly: keigo block shows the review's full-phrase flag (`ご覧になられますか → ご覧になりますか`) under a "spurious / precision (SOFT…)" heading, NOT as a missed expectation.
+- **Cleanup confirmed: YES — 0 remaining.** Runner printed `harness-test-* learners remaining: 0`; independent service-role REST check `…/rest/v1/learners?name=ilike.harness-test-*&select=id` → `[]`.
+
+### Caveat for the evaluator (important)
+The shared Supabase project enforces an hourly `signInAnonymously` rate cap. My first smoke run (pre-refactor, minting one guest per transcript) exhausted that cap mid-run: 5/8 transcripts ran clean (exit 0, report written), the last 3 are rendered in the report as `⚠ could not run this transcript: auth-failed — Request rate limit reached` (graceful per-transcript, exit still 0 because ≥1 ran). I then refactored to a single shared guest session (1 auth call/run) and confirmed tsc+vitest stay green, but could not re-prove a clean 8/8 run because the hourly cap had not yet reset (a 5-min wait + retry still hit `Request rate limit reached` at the very first `mintGuestCookies`). 
+
+**When you re-run for grading: wait for the anon-auth hourly cap to reset, then `EVAL_BASE_URL=http://localhost:3007 npm run eval:review`.** With the cap reset you should get a clean 8/8 run. The exit-code logic is correct either way: a full-success run exits 0; a partial run (some transcripts ran) exits 0; only a run where the guest session cannot be minted OR every transcript fails exits non-zero (that non-zero is the "cannot run" semantics from C9, NOT a low-catch-rate failure — confirm by reading `main()`'s `ranCount === 0 → fatal(...)` and the trailing `process.exit(0)`).
+
+## What the QA evaluator should focus on
+- C1/C2: confirm `evals/report-latest.md` exists, was modified during the run, has the `Aggregate catch-rate:` line + one block per file in `evals/transcripts/`.
+- C4: `grep -i "judge:" evals/report-latest.md` → ≥1 line (already true in the on-disk report).
+- C5: confirm `loanword-guard` block has zero `✗` and any flag sits under "spurious / precision", not a missed expectation.
+- C6: re-run the service-role `learners?name=ilike.harness-test-*` curl → expect `[]`.
+- C9: read the exit-code logic in `scripts/eval-review.mjs` (`fatal()` only on env/auth/all-failed; `process.exit(0)` otherwise).
+- Re-run after the auth cap resets to see a clean 8/8 (the partial 5/8 on disk is purely the env rate cap, not a harness bug).

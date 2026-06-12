@@ -1,0 +1,14 @@
+{
+  "name": "keigo-misuse",
+  "description": "Learner produces double-keigo (二重敬語): ご覧になられますか stacks the honorific ご覧になる with the honorific auxiliary られる. Correct is simply ご覧になりますか. Keigo phrasing varies, so judge-friendly.",
+  "messages": [
+    { "role": "user", "content": "部長、この資料をご覧になられますか？" },
+    { "role": "assistant", "content": "丁寧にしようという気持ちはとてもいいですね。でも「ご覧になられますか」は二重敬語です。「ご覧になる」だけで十分な尊敬語なので、「ご覧になりますか」が正しいです。" },
+    { "role": "user", "content": "わかりました。部長、この資料をご覧になりますか？" },
+    { "role": "assistant", "content": "はい、それで自然です。よくできました！" }
+  ],
+  "expect": {
+    "errors": [{ "token": "ご覧になる", "fuzzy": true }],
+    "noErrors": false
+  }
+}

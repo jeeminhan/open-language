@@ -1,0 +1,14 @@
+{
+  "name": "transitive-intransitive",
+  "description": "Learner misuses a transitive/intransitive pair: says 電気が消しました (intransitive subject with transitive verb) when they mean either 電気を消しました (I turned off the light) or 電気が消えました (the light went off). Paraphrase-heavy, so judge-friendly.",
+  "messages": [
+    { "role": "user", "content": "昨日の夜、寝る前に電気が消しました。" },
+    { "role": "assistant", "content": "なるほど。ここは自動詞と他動詞の使い分けですね。自分で消したなら「電気を消しました」、ひとりでに消えたなら「電気が消えました」になります。どちらでしたか？" },
+    { "role": "user", "content": "私が消したので、電気を消しました、ですね。" },
+    { "role": "assistant", "content": "はい、その通りです！「を」と他動詞「消す」を一緒に使えていますね。よくできました。" }
+  ],
+  "expect": {
+    "errors": [{ "token": "電気が消しました", "fuzzy": true }],
+    "noErrors": false
+  }
+}

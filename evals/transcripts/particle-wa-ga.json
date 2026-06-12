@@ -1,0 +1,17 @@
+{
+  "name": "particle-wa-ga",
+  "description": "Learner uses が where を is the correct object marker (公園が散歩しました instead of 公園を散歩しました), a classic particle error.",
+  "messages": [
+    { "role": "user", "content": "こんにちは。週末はどうでしたか？" },
+    { "role": "assistant", "content": "こんにちは！いい週末でしたよ。あなたは何をしましたか？" },
+    { "role": "user", "content": "私は公園が散歩しました。とても気持ちよかったです。" },
+    { "role": "assistant", "content": "いいですね！ところで「公園が散歩しました」は少し直したほうがいいですね。正しくは「公園を散歩しました」です。「散歩する」の場所には「を」を使います。" },
+    { "role": "user", "content": "ああ、そうですか。公園を散歩しました。ありがとうございます。" },
+    { "role": "assistant", "content": "その通りです！上手になりましたね。" }
+  ],
+  "expect": {
+    "errors": [{ "token": "が", "fuzzy": false }],
+    "grammar": ["particle"],
+    "noErrors": false
+  }
+}

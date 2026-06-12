@@ -1,0 +1,15 @@
+{
+  "name": "conjugation-yoki",
+  "description": "Learner uses the archaic/incorrect 良き where the standard adverbial よく is needed (良き寝ました instead of よく寝ました). Clear rule-based conjugation error on よく.",
+  "messages": [
+    { "role": "user", "content": "昨日は疲れていたので、良き寝ました。" },
+    { "role": "assistant", "content": "ゆっくり休めてよかったですね。一つだけ直しますね。「良き寝ました」ではなく「よく寝ました」が正しいです。「良い」を副詞にすると「よく」になります。" },
+    { "role": "user", "content": "なるほど、よく寝ました。覚えました。" },
+    { "role": "assistant", "content": "完璧です！その調子で頑張りましょう。" }
+  ],
+  "expect": {
+    "errors": [{ "token": "よく", "fuzzy": false }],
+    "grammar": ["conjugation"],
+    "noErrors": false
+  }
+}

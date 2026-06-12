@@ -1,0 +1,14 @@
+{
+  "name": "unknown-word-ask",
+  "description": "Learner explicitly asks the meaning of a Japanese word they do not know (渋滞). The review should surface it as an unknown word.",
+  "messages": [
+    { "role": "user", "content": "今朝、会社に行くのが大変でした。「渋滞」は何ですか？" },
+    { "role": "assistant", "content": "「渋滞」は英語で a traffic jam という意味です。車がたくさんで道が進まないことですね。今朝は渋滞でしたか？" },
+    { "role": "user", "content": "はい、ひどい渋滞でした。一時間かかりました。" },
+    { "role": "assistant", "content": "それは大変でしたね。新しい言葉「渋滞」を上手に使えましたね！" }
+  ],
+  "expect": {
+    "unknownWords": ["渋滞"],
+    "noErrors": false
+  }
+}

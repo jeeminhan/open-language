@@ -1,0 +1,13 @@
+{
+  "name": "loanword-guard",
+  "description": "NEGATIVE / GUARD: learner uses correct, natural katakana loanwords (コンビニ, アルバイト) with no errors. The review must NOT flag the loanwords as errors. Any flag is soft-spurious only, never an expected-and-missed.",
+  "messages": [
+    { "role": "user", "content": "私は週に三回、コンビニでアルバイトをしています。" },
+    { "role": "assistant", "content": "いいですね！コンビニのアルバイトは日本語の練習にもなりますね。どんな仕事をしますか？" },
+    { "role": "user", "content": "レジでお客さんに「いらっしゃいませ」と言います。楽しいです。" },
+    { "role": "assistant", "content": "とても自然な日本語です。接客の言葉も上手ですね！" }
+  ],
+  "expect": {
+    "noErrors": true
+  }
+}

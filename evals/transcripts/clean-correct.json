@@ -1,0 +1,14 @@
+{
+  "name": "clean-correct",
+  "description": "Fully correct beginner Japanese using the て-form to connect actions (起きて、朝ごはんを食べて). Expect a grammar credit and NO fabricated errors; any flagged error is soft precision only.",
+  "messages": [
+    { "role": "user", "content": "今日は朝六時に起きて、朝ごはんを食べて、それから会社に行きました。" },
+    { "role": "assistant", "content": "すばらしいですね！「起きて、食べて、行きました」と、て形で動作をきれいにつなげています。とても自然な日本語です。" },
+    { "role": "user", "content": "ありがとうございます。週末も早く起きて、運動したいです。" },
+    { "role": "assistant", "content": "いい習慣ですね！応援しています。" }
+  ],
+  "expect": {
+    "grammar": ["て-form"],
+    "noErrors": true
+  }
+}

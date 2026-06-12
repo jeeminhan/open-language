@@ -1,0 +1,14 @@
+{
+  "name": "te-form-request",
+  "description": "Learner correctly forms a て-ください request (待ってください). Reinforces the clean grammar-credit signal: expect a て-form grammar credit and no fabricated errors.",
+  "messages": [
+    { "role": "user", "content": "すみません、ちょっと待ってください。今、準備しています。" },
+    { "role": "assistant", "content": "もちろんです！「待ってください」、て形のお願いがとても自然ですね。ゆっくりどうぞ。" },
+    { "role": "user", "content": "ありがとうございます。それから、ドアを開けてください。" },
+    { "role": "assistant", "content": "はい、わかりました。「開けてください」も正しく言えていますね。" }
+  ],
+  "expect": {
+    "grammar": ["て-form"],
+    "noErrors": true
+  }
+}

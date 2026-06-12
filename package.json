@@ -9,6 +9,7 @@
     "lint": "eslint",
     "gen:demo-audio": "node --env-file=.env --env-file-if-exists=.env.local scripts/generate-demo-audio.mjs",
     "probe:persistence": "node --env-file=.env --env-file-if-exists=.env.local scripts/probe-persistence.mjs",
+    "eval:review": "node --env-file=.env --env-file-if-exists=.env.local scripts/eval-review.mjs",
     "test": "vitest run"
   },
   "dependencies": {

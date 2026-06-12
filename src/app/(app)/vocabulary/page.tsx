@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 
 type SrsState = "seen" | "learning" | "reviewing" | "known";
 
@@ -77,9 +76,6 @@ export default function VocabularyPage() {
             Your personal words, layered over the frequency map.
           </p>
         </div>
-        <Link href="/curriculum" className="text-xs" style={{ color: "var(--river)" }}>
-          whole curriculum →
-        </Link>
       </div>
 
       {/* Stats bar */}

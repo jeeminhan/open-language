@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getLearner, getGrammar } from "@/lib/db";
 import { getAuthUserId } from "@/lib/auth";
 import { cookies } from "next/headers";
@@ -47,9 +46,6 @@ export default async function GrammarPage() {
         >
           Grammar Mastery
         </h2>
-        <Link href="/curriculum" className="text-xs" style={{ color: "var(--gold)" }}>
-          whole curriculum →
-        </Link>
       </div>
 
       {grammar.length === 0 ? (

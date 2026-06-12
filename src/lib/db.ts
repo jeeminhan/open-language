@@ -1,5 +1,9 @@
 import { supabase } from "./supabase";
 import { isSupportedLanguagePair } from "./supportedLanguage";
+import { buildFallbackJapaneseLessonPlan } from "./curriculum/fallbackJa";
+import { curriculumBootstrapRuleForLevel } from "./curriculum/levels";
+import { normalizeCurriculumLessonPlan } from "./curriculum/normalize";
+import type { CurriculumLessonPlan } from "./curriculum/types";
 
 function uid(): string {
   return crypto.randomUUID();
@@ -301,6 +305,433 @@ export async function getBlindspots(learnerId: string): Promise<GrammarItem[]> {
     .eq("learner_id", learnerId);
   const items = (data ?? []) as GrammarItem[];
   return items.filter((g) => g.correct_uses + g.incorrect_uses === 0);
+}
+
+export interface CurriculumBootstrapResult {
+  ok: boolean;
+  reason?: string;
+  snapshotId?: string | null;
+  placement: string;
+  masteredGrammarLevels: string[];
+  activeGrammarLevel: string;
+  masteredVocabRank: number;
+  masteredVocabRows?: number;
+  masteredGrammarRows?: number;
+  unknownGrammarRows?: number;
+}
+
+export async function bootstrapLearnerCurriculumState(
+  learnerId: string,
+  cefrLevel: string
+): Promise<CurriculumBootstrapResult> {
+  const rule = curriculumBootstrapRuleForLevel(cefrLevel);
+  const base: CurriculumBootstrapResult = {
+    ok: false,
+    placement: rule.placement,
+    masteredGrammarLevels: rule.masteredGrammarLevels,
+    activeGrammarLevel: rule.activeGrammarLevel,
+    masteredVocabRank: rule.masteredVocabRank,
+  };
+
+  const { data, error } = await supabase.rpc("bootstrap_learner_curriculum_state", {
+    p_learner_id: learnerId,
+    p_cefr_level: rule.cefrLevel,
+  });
+
+  if (error) {
+    return { ...base, reason: error.message };
+  }
+
+  const row = (data ?? {}) as Record<string, unknown>;
+  return {
+    ...base,
+    ok: row.ok === true,
+    reason: typeof row.reason === "string" ? row.reason : undefined,
+    snapshotId: typeof row.snapshotId === "string" ? row.snapshotId : null,
+    placement: typeof row.placement === "string" ? row.placement : base.placement,
+    masteredVocabRank:
+      typeof row.masteredVocabRank === "number"
+        ? row.masteredVocabRank
+        : base.masteredVocabRank,
+    masteredVocabRows:
+      typeof row.masteredVocabRows === "number" ? row.masteredVocabRows : undefined,
+    masteredGrammarRows:
+      typeof row.masteredGrammarRows === "number" ? row.masteredGrammarRows : undefined,
+    unknownGrammarRows:
+      typeof row.unknownGrammarRows === "number" ? row.unknownGrammarRows : undefined,
+  };
+}
+
+export async function getNextCurriculumLesson(
+  learner: Pick<Learner, "id" | "target_language">,
+  options: {
+    scenarioId?: string;
+    scenarioLabel?: string;
+    scenarioTags?: string[];
+    vocabBudget?: number;
+    grammarBudget?: number;
+  } = {}
+): Promise<CurriculumLessonPlan | null> {
+  if (!learner.target_language.toLowerCase().includes("japanese")) {
+    return null;
+  }
+
+  const scenarioId = options.scenarioId ?? "koenji-coffee-shop";
+  const scenarioLabel = options.scenarioLabel ?? "Koenji coffee shop";
+  const scenarioTags = options.scenarioTags ?? [
+    "food",
+    "polite",
+    "transactional",
+    "everyday",
+  ];
+
+  const fallback = buildFallbackJapaneseLessonPlan({
+    scenarioId,
+    scenarioLabel,
+    scenarioTags,
+  });
+
+  const { data, error } = await supabase.rpc("pick_next_curriculum_items", {
+    p_learner_id: learner.id,
+    p_scenario_id: scenarioId,
+    p_scenario_label: scenarioLabel,
+    p_scenario_tags: scenarioTags,
+    p_vocab_budget: options.vocabBudget ?? 5,
+    p_grammar_budget: options.grammarBudget ?? 1,
+  });
+
+  if (error) return fallback;
+
+  const plan = normalizeCurriculumLessonPlan(data);
+  if (!plan || (plan.vocab.length === 0 && plan.grammar.length === 0)) {
+    return fallback;
+  }
+  return plan;
+}
+
+export type CurriculumMapStatus =
+  | "unknown"
+  | "introduced"
+  | "practiced"
+  | "mastered";
+
+export interface CurriculumStatusCounts {
+  unknown: number;
+  introduced: number;
+  practiced: number;
+  mastered: number;
+}
+
+export interface CurriculumGrammarLevel {
+  level: "N5" | "N4" | "N3" | "N2" | "N1";
+  label: string;
+  total: number;
+  reviewed: number;
+  counts: CurriculumStatusCounts;
+  samples: string[];
+}
+
+export interface CurriculumVocabBand {
+  id: string;
+  label: string;
+  rangeLabel: string;
+  minRank: number;
+  maxRank: number;
+  total: number;
+  counts: CurriculumStatusCounts;
+}
+
+export interface CurriculumOverview {
+  fallback: boolean;
+  snapshot: {
+    id: string;
+    tag: string;
+    takenAt: string | null;
+  } | null;
+  grammarLevels: CurriculumGrammarLevel[];
+  vocabBands: CurriculumVocabBand[];
+  notes: string[];
+}
+
+type SnapshotRow = {
+  id: string;
+  tag: string;
+  taken_at: string | null;
+};
+
+type GrammarCatalogRow = {
+  id: string;
+  name: string;
+  jlpt_level: string | null;
+  reviewed_at: string | null;
+};
+
+type GrammarStateRow = {
+  grammar_id: string;
+  status: CurriculumMapStatus;
+};
+
+type FrequencyRankRow = {
+  vocab_id: string;
+  rank: number;
+};
+
+type VocabStateRow = {
+  vocab_id: string;
+  status: CurriculumMapStatus;
+};
+
+const JLPT_LEVELS: CurriculumGrammarLevel["level"][] = [
+  "N5",
+  "N4",
+  "N3",
+  "N2",
+  "N1",
+];
+
+const VOCAB_BANDS: Array<Omit<CurriculumVocabBand, "total" | "counts">> = [
+  {
+    id: "top-500",
+    label: "First core",
+    rangeLabel: "#1-500",
+    minRank: 1,
+    maxRank: 500,
+  },
+  {
+    id: "top-1500",
+    label: "Everyday base",
+    rangeLabel: "#501-1,500",
+    minRank: 501,
+    maxRank: 1500,
+  },
+  {
+    id: "top-3000",
+    label: "Independent speech",
+    rangeLabel: "#1,501-3,000",
+    minRank: 1501,
+    maxRank: 3000,
+  },
+  {
+    id: "top-6000",
+    label: "Broad fluency",
+    rangeLabel: "#3,001-6,000",
+    minRank: 3001,
+    maxRank: 6000,
+  },
+  {
+    id: "top-10000",
+    label: "Advanced reach",
+    rangeLabel: "#6,001-10,000",
+    minRank: 6001,
+    maxRank: 10000,
+  },
+];
+
+function emptyCounts(): CurriculumStatusCounts {
+  return { unknown: 0, introduced: 0, practiced: 0, mastered: 0 };
+}
+
+function statusOrUnknown(status: string | null | undefined): CurriculumMapStatus {
+  if (
+    status === "introduced" ||
+    status === "practiced" ||
+    status === "mastered"
+  ) {
+    return status;
+  }
+  return "unknown";
+}
+
+function fallbackCurriculumOverview(reason: string): CurriculumOverview {
+  return {
+    fallback: true,
+    snapshot: null,
+    notes: [
+      reason,
+      "Counts are target-shape placeholders until Phase 0 ingestion is run.",
+    ],
+    grammarLevels: [
+      {
+        level: "N5",
+        label: "starter sentence machinery",
+        total: 80,
+        reviewed: 0,
+        counts: { unknown: 80, introduced: 0, practiced: 0, mastered: 0 },
+        samples: ["です / ます", "は / が", "〜たい", "〜てください"],
+      },
+      {
+        level: "N4",
+        label: "everyday connection patterns",
+        total: 170,
+        reviewed: 0,
+        counts: { unknown: 170, introduced: 0, practiced: 0, mastered: 0 },
+        samples: ["〜てしまう", "〜たほうがいい", "〜ながら", "〜そうです"],
+      },
+      {
+        level: "N3",
+        label: "natural explanation and texture",
+        total: 180,
+        reviewed: 0,
+        counts: { unknown: 180, introduced: 0, practiced: 0, mastered: 0 },
+        samples: ["〜わけではない", "〜ように", "〜ばかり", "〜ことにする"],
+      },
+      {
+        level: "N2",
+        label: "argument, register, and nuance",
+        total: 110,
+        reviewed: 0,
+        counts: { unknown: 110, introduced: 0, practiced: 0, mastered: 0 },
+        samples: ["〜に違いない", "〜にもかかわらず", "〜わけだ", "〜つつ"],
+      },
+      {
+        level: "N1",
+        label: "dense written and formal patterns",
+        total: 60,
+        reviewed: 0,
+        counts: { unknown: 60, introduced: 0, practiced: 0, mastered: 0 },
+        samples: ["〜に至るまで", "〜を皮切りに", "〜までもない", "〜べからず"],
+      },
+    ],
+    vocabBands: VOCAB_BANDS.map((band) => {
+      const total = band.maxRank - band.minRank + 1;
+      return {
+        ...band,
+        total,
+        counts: { unknown: total, introduced: 0, practiced: 0, mastered: 0 },
+      };
+    }),
+  };
+}
+
+export async function getCurriculumOverview(
+  learner: Pick<Learner, "id" | "target_language">
+): Promise<CurriculumOverview | null> {
+  if (!learner.target_language.toLowerCase().includes("japanese")) {
+    return null;
+  }
+
+  const snapshotRes = await supabase
+    .from("snapshots")
+    .select("id, tag, taken_at")
+    .eq("picker_active", true)
+    .order("taken_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (snapshotRes.error) {
+    return fallbackCurriculumOverview(snapshotRes.error.message);
+  }
+
+  const snapshot = snapshotRes.data as SnapshotRow | null;
+  if (!snapshot) {
+    return fallbackCurriculumOverview("No active curriculum snapshot found.");
+  }
+
+  const [grammarRes, grammarStateRes, ranksRes, vocabStateRes] =
+    await Promise.all([
+      supabase
+        .from("grammar_items")
+        .select("id, name, jlpt_level, reviewed_at")
+        .order("jlpt_level", { ascending: false })
+        .order("name", { ascending: true })
+        .range(0, 1199),
+      supabase
+        .from("learner_known_grammar")
+        .select("grammar_id, status")
+        .eq("learner_id", learner.id)
+        .eq("snapshot_id", snapshot.id)
+        .range(0, 1199),
+      supabase
+        .from("frequency_ranks")
+        .select("vocab_id, rank")
+        .eq("snapshot_id", snapshot.id)
+        .eq("source", "jpdb")
+        .lte("rank", 10000)
+        .order("rank", { ascending: true })
+        .range(0, 9999),
+      supabase
+        .from("learner_known_vocab")
+        .select("vocab_id, status")
+        .eq("learner_id", learner.id)
+        .eq("snapshot_id", snapshot.id)
+        .range(0, 9999),
+    ]);
+
+  if (grammarRes.error || ranksRes.error) {
+    return fallbackCurriculumOverview(
+      grammarRes.error?.message ?? ranksRes.error?.message ?? "Curriculum unavailable."
+    );
+  }
+
+  const grammarRows = (grammarRes.data ?? []) as GrammarCatalogRow[];
+  const rankRows = (ranksRes.data ?? []) as FrequencyRankRow[];
+  if (grammarRows.length === 0 && rankRows.length === 0) {
+    return fallbackCurriculumOverview(
+      "Active snapshot is present, but curriculum rows are not populated yet."
+    );
+  }
+
+  const grammarState = new Map<string, CurriculumMapStatus>();
+  for (const row of ((grammarStateRes.data ?? []) as GrammarStateRow[])) {
+    grammarState.set(row.grammar_id, statusOrUnknown(row.status));
+  }
+
+  const grammarLevels = JLPT_LEVELS.map((level) => {
+    const rows = grammarRows.filter((row) => row.jlpt_level === level);
+    const counts = emptyCounts();
+    for (const row of rows) {
+      counts[grammarState.get(row.id) ?? "unknown"] += 1;
+    }
+    return {
+      level,
+      label: {
+        N5: "starter sentence machinery",
+        N4: "everyday connection patterns",
+        N3: "natural explanation and texture",
+        N2: "argument, register, and nuance",
+        N1: "dense written and formal patterns",
+      }[level],
+      total: rows.length,
+      reviewed: rows.filter((row) => row.reviewed_at).length,
+      counts,
+      samples: rows.slice(0, 8).map((row) => row.name),
+    };
+  });
+
+  const vocabState = new Map<string, CurriculumMapStatus>();
+  for (const row of ((vocabStateRes.data ?? []) as VocabStateRow[])) {
+    vocabState.set(row.vocab_id, statusOrUnknown(row.status));
+  }
+
+  const vocabBands = VOCAB_BANDS.map((band) => {
+    const counts = emptyCounts();
+    const rows = rankRows.filter(
+      (row) => row.rank >= band.minRank && row.rank <= band.maxRank
+    );
+    for (const row of rows) {
+      counts[vocabState.get(row.vocab_id) ?? "unknown"] += 1;
+    }
+    return {
+      ...band,
+      total: rows.length,
+      counts,
+    };
+  });
+
+  return {
+    fallback: false,
+    snapshot: {
+      id: snapshot.id,
+      tag: snapshot.tag,
+      takenAt: snapshot.taken_at,
+    },
+    grammarLevels,
+    vocabBands,
+    notes: [
+      "Grammar is grouped by reviewed JLPT skeleton entries.",
+      "Vocabulary is grouped by JPDB frequency rank bands up to the top 10,000.",
+    ],
+  };
 }
 
 // ── Write operations ─────────────────────────────────────

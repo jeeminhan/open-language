@@ -1,8 +1,10 @@
 import {
+  bootstrapLearnerCurriculumState,
   getLearner,
   getActiveLearnerIdFromRequest,
   updateLearnerLevel,
   markVocabUnknown,
+  type CurriculumBootstrapResult,
 } from "@/lib/db";
 import { getAuthUserId } from "@/lib/auth";
 import { sanitizeForPrompt, wrapUserInput } from "@/lib/promptSafety";
@@ -18,16 +20,25 @@ interface AssessmentResult {
   level: "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
   justification: string;
   seedWords: string[];
+  curriculumBootstrap?: CurriculumBootstrapResult | null;
 }
 
 const VALID_LEVELS = new Set(["A1", "A2", "B1", "B2", "C1", "C2"]);
 
 function parseJsonResponse(raw: string): unknown {
-  const cleaned = raw.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
+  // Strip markdown fences (```json ... ``` or ``` ... ```)
+  let cleaned = raw.replace(/```json?\n?/gi, "").replace(/```/g, "").trim();
+  // Narrow to first { ... last } in case the model added prose around the JSON
+  const first = cleaned.indexOf("{");
+  const last = cleaned.lastIndexOf("}");
+  if (first !== -1 && last !== -1 && last > first) {
+    cleaned = cleaned.slice(first, last + 1);
+  }
   try {
     return JSON.parse(cleaned);
   } catch {
     try {
+      // Tolerate trailing commas
       return JSON.parse(cleaned.replace(/,\s*]/g, "]").replace(/,\s*}/g, "}"));
     } catch {
       return null;
@@ -87,10 +98,15 @@ export async function POST(request: Request) {
   // word seeding. The recap will still show; this just avoids a wasted LLM call.
   if (messages.length === 0) {
     await updateLearnerLevel(learner.id, "A2", userId);
+    const curriculumBootstrap = await bootstrapLearnerCurriculumState(
+      learner.id,
+      "A2"
+    ).catch(() => null);
     const result: AssessmentResult = {
       level: "A2",
       justification: "Not enough conversation to place precisely — starting at A2.",
       seedWords: [],
+      curriculumBootstrap,
     };
     return Response.json(result);
   }
@@ -148,7 +164,7 @@ Be slightly conservative — when between two levels, pick the lower.`,
                 ],
               },
             ],
-            generationConfig: { temperature: 0.2, maxOutputTokens: 600 },
+            generationConfig: { temperature: 0.2, maxOutputTokens: 1200 },
           }),
         }
       );
@@ -166,7 +182,7 @@ Be slightly conservative — when between two levels, pick the lower.`,
         } else {
           const parsed = parseJsonResponse(raw) as Partial<AssessmentResult> | null;
           if (!parsed || typeof parsed !== "object") {
-            assessError = `Could not parse LLM JSON: ${raw.slice(0, 120)}`;
+            assessError = `Could not parse LLM JSON. Raw: ${raw.slice(0, 600)}`;
             console.error("[level-test/assess]", assessError);
           } else {
             const level =
@@ -197,9 +213,13 @@ Be slightly conservative — when between two levels, pick the lower.`,
   // Persist level + seed words. Best-effort — don't fail the response if any
   // sub-write fails; the user still sees their recap.
   await updateLearnerLevel(learner.id, result.level, userId).catch(() => null);
+  const curriculumBootstrap = await bootstrapLearnerCurriculumState(
+    learner.id,
+    result.level
+  ).catch(() => null);
   for (const word of result.seedWords) {
     await markVocabUnknown(learner.id, word).catch(() => null);
   }
 
-  return Response.json({ ...result, debug: assessError });
+  return Response.json({ ...result, curriculumBootstrap, debug: assessError });
 }

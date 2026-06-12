@@ -15,9 +15,13 @@ The "nothing commits to the database" complaint. `session/finish` runs 6 LLM pas
 - Check the `isSupportedLearner` guard in `db.ts` — confirm it isn't silently dropping writes for valid learners.
 - QA criteria: drive a session via API with a fixture transcript; assert rows actually appear (vocab/errors/grammar counts > 0) and the dashboard reflects them.
 
-## 3. Demo polish for interview (P1)
-- Walk all five HARNESS.md journeys at 375/768/1440; fix anything broken or visually off.
-- Landing → demo → guest call path must be flawless; that is the interview demo.
+## 3. Demo polish for interview (P1) — mostly DONE 2026-06-12
+- Demo-readiness QA sweep run (5 journeys × 375/768/1440). Fixed: landing CSS regression (was unstyled — restored matching stylesheet); added app-shell nav across (app) pages; removed cold-start dead-ends (scene/grammar redirect to /home).
+- **Deferred (low-risk, do nearer Jun 25):**
+  - Reseed a fresh session so `/sessions` isn't showing April dates (looks abandoned). One-off data op.
+  - Guest login: surface the Supabase anon-signin 429 visibly (and/or raise the anon rate limit in the Supabase dashboard) so the guest button can't silently no-op during a live demo.
+  - Hydration warning on the dev-only `/call?fixture=...` URL (move fixture read out of the useState initializer). Only matters if the demo visits that URL — it won't.
+- **Demo strategy:** lead with `/demo` (strongest, works); show a pre-set-up real call rather than improvising a cold guest sign-in live.
 
 ## Out-of-contract findings (from QA)
 - **Supabase schema drift (2026-06-12, from contract-001 QA):** the `supabase-curriculum.sql` migration was never applied to the live project — `bootstrap_learner_curriculum_state(p_cefr_level, p_learner_id)` is missing from the schema cache, so `curriculumBootstrap.ok=false` on every assess call. Best-effort/`.catch`, so nothing user-facing breaks, but it means curriculum bootstrap is a no-op. Apply the migration (or drop the call) when item 2 / curriculum is picked up.

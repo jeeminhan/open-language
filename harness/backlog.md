@@ -2,7 +2,7 @@
 
 Seeded 2026-06-12 from the revival audit. Target: demo-ready for MEXT interview ~2026-06-25.
 
-## 1. Fix the level test end-to-end (P0)
+## 1. Fix the level test end-to-end (P0) — ✅ DONE 2026-06-12 (contract-001, commit 64a9c88)
 The first-call level test has never worked. Three root causes, fix all:
 - **End signal**: the prompt asks the voice model to append a silent text token `[[LEVELTEST_DONE]]` — impossible over Gemini Live (assistant transcript is transcribed audio). Replace with a deterministic client-side end: cap at N exchanges (`InCall.tsx` already counts turns) and drop the token machinery from `levelTest.ts` + `InCall.tsx`.
 - **Truncated JSON**: `api/level-test/assess` calls gemini-2.5-flash with plain text output; thinking tokens eat `maxOutputTokens`. Switch to `responseMimeType: "application/json"` + `responseSchema` + `thinkingConfig: { thinkingBudget: 0 }`, then delete the brace-hunting in `parseJsonResponse`.

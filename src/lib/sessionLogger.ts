@@ -16,6 +16,13 @@ type SessionLogEvent =
       words: string[];
     }
   | {
+      type: "curriculum-lesson-loaded";
+      scenarioLabel: string;
+      fallback: boolean;
+      vocab: string[];
+      grammar: string[];
+    }
+  | {
       type: "voice-started";
     }
   | {

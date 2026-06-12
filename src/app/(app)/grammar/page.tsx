@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getLearner, getGrammar } from "@/lib/db";
 import { getAuthUserId } from "@/lib/auth";
 import { cookies } from "next/headers";
@@ -39,12 +40,17 @@ export default async function GrammarPage() {
 
   return (
     <div>
-      <h2
-        className="text-lg font-bold mb-6"
-        style={{ color: "var(--river)" }}
-      >
-        Grammar Mastery
-      </h2>
+      <div className="mb-6 flex flex-wrap items-baseline justify-between gap-2">
+        <h2
+          className="text-lg font-bold"
+          style={{ color: "var(--river)" }}
+        >
+          Grammar Mastery
+        </h2>
+        <Link href="/curriculum" className="text-xs" style={{ color: "var(--gold)" }}>
+          whole curriculum →
+        </Link>
+      </div>
 
       {grammar.length === 0 ? (
         <div className="card">

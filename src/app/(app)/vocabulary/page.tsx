@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 
 type SrsState = "seen" | "learning" | "reviewing" | "known";
 
@@ -67,6 +68,20 @@ export default function VocabularyPage() {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-bold" style={{ color: "var(--gold)" }}>
+            Vocabulary
+          </h2>
+          <p className="text-xs" style={{ color: "var(--text-dim)" }}>
+            Your personal words, layered over the frequency map.
+          </p>
+        </div>
+        <Link href="/curriculum" className="text-xs" style={{ color: "var(--river)" }}>
+          whole curriculum →
+        </Link>
+      </div>
+
       {/* Stats bar */}
       <div className="grid grid-cols-3 gap-4">
         <div className="card text-center" style={{ borderTop: "3px solid var(--ember)" }}>

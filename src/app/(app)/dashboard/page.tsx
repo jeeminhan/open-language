@@ -164,13 +164,22 @@ export default async function ProgressPage() {
           <MiniStat value={today.minutes} label="minutes" />
         </div>
         {today.sessions === 0 && (
-          <Link
-            href="/call"
-            className="mt-3 block text-center rounded-lg py-3 text-sm font-medium transition-all hover:scale-[1.01]"
-            style={{ background: "var(--moss)", color: "white" }}
-          >
-            Start today&apos;s session →
-          </Link>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <Link
+              href="/scene"
+              className="block text-center rounded-lg py-3 text-sm font-medium transition-all hover:scale-[1.01]"
+              style={{ background: "var(--moss)", color: "white" }}
+            >
+              Start today&apos;s scene →
+            </Link>
+            <Link
+              href="/call"
+              className="block text-center rounded-lg py-3 text-sm font-medium transition-all hover:scale-[1.01]"
+              style={{ background: "var(--bg-card)", color: "var(--text)", border: "1px solid var(--border)" }}
+            >
+              Start a call →
+            </Link>
+          </div>
         )}
       </section>
 

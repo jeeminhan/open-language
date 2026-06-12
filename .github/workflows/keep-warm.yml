@@ -1,0 +1,28 @@
+name: keep-warm
+
+# Supabase free-tier projects auto-pause after ~7 days of inactivity. A periodic
+# API request counts as activity and keeps the project from pausing — which
+# previously took the whole app's persistence offline. Runs every 3 days.
+
+on:
+  schedule:
+    - cron: "0 9 */3 * *" # 09:00 UTC every 3rd day
+  workflow_dispatch: {} # allow manual "Run workflow" before a demo
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST to prevent auto-pause
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/learners?select=id&limit=1")
+          echo "Supabase ping HTTP ${code}"
+          if [ "${code}" = "000" ]; then
+            echo "::error::Supabase unreachable (DNS/NXDOMAIN) — project may be paused or deleted"
+            exit 1
+          fi

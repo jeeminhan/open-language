@@ -42,6 +42,16 @@ const ROUTING_GRACE_MESSAGES = 2;
 // plays out before hanging up.
 const LEVELTEST_END_DELAY_MS = 1500;
 
+// Hard client-side ceiling on the recap-save round trip. The server's
+// /session/finish runs an LLM review (maxDuration 90s) plus serial DB writes,
+// but maxDuration is NOT enforced in local dev, so a stalled Gemini/DB call
+// would otherwise hang the "saving your recap…" screen forever. On timeout we
+// fall back to the locally-tracked recap so the UI always advances.
+const FINISH_FETCH_TIMEOUT_MS = 95_000;
+// Turn saves are best-effort (the finish call replays missing turns), so cap
+// them tightly — we never want a stalled turn POST to block hang-up.
+const TURN_SAVE_TIMEOUT_MS = 8_000;
+
 interface Learner {
   id: string;
   name: string;
@@ -186,6 +196,7 @@ export default function InCall({ learner, onEnd }: Props) {
         const res = await fetch("/api/session/turn", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(TURN_SAVE_TIMEOUT_MS),
           body: JSON.stringify({
             sessionId,
             turnNumber,
@@ -500,6 +511,7 @@ export default function InCall({ learner, onEnd }: Props) {
         const res = await fetch("/api/session/finish", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(FINISH_FETCH_TIMEOUT_MS),
           body: JSON.stringify({
             sessionId,
             messages: messages.map((m) => ({
@@ -519,9 +531,13 @@ export default function InCall({ learner, onEnd }: Props) {
           reviewedErrorCount = errors.length;
         }
       } catch {
-        await fetch("/api/session/end", {
+        // Finish timed out or failed. Close the session best-effort WITHOUT
+        // blocking — the recap below falls back to locally-tracked data so the
+        // UI never stalls on "saving your recap…".
+        void fetch("/api/session/end", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(TURN_SAVE_TIMEOUT_MS),
           body: JSON.stringify({ sessionId }),
         }).catch(() => {
           // Silent — the session row will naturally age out server-side.

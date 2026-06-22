@@ -1,221 +1,41 @@
-# open-language
+# Hi, this is open-language.
 
 ![open-language](docs/assets/hero.png)
 
-A language tutor that actually remembers you — vocab you've looked up, mistakes you keep making, topics you care about — across every session.
+It's a language tutor that actually remembers you. Every word you look up, every mistake you keep making, every topic you're into — it keeps all of it, across every session. So the next conversation isn't a cold start. Kind of like a real tutor who remembers last week.
 
-> **Try it hosted:** [open-language-nine.vercel.app](https://open-language-nine.vercel.app)
-> No setup, free to start. Self-host below if you'd rather run your own.
+Right now it teaches Japanese (English ↔ Japanese), on the web or in your terminal.
 
----
+**Try it without setting anything up:** [open-language-nine.vercel.app](https://open-language-nine.vercel.app) — free to start, no install. Want to run your own copy? Keep reading.
+
+This is the open-source version. MIT licensed — tinker with it, fork it, build your own features, start a company out of it, I don't mind. Go crazy.
 
 ## See it in 60 seconds
 
-A short Japanese conversation between a tutor and a learner. Watch the right-hand panel — every word, grammar pattern, and mistake is captured, and the next session uses that memory.
+A short Japanese conversation between a tutor and a learner. Watch what happens on the side — every word, grammar pattern, and mistake gets quietly saved, and the *next* session uses that memory.
 
 <video src="https://github.com/jeeminhan/open-language/raw/main/docs/assets/demo.mp4" controls width="720"></video>
 
-[▶ Watch the live demo](https://open-language-nine.vercel.app/demo) · [Download the video](docs/assets/demo.mp4)
+[▶ Watch it live](https://open-language-nine.vercel.app) · [Download the video](docs/assets/demo.mp4)
 
----
+## Get started with Claude Code
 
-## Status & related work
-
-`open-language` is the original full-stack app: persistent learner memory, Next.js dashboard, Python CLI, Supabase backend.
-
-Active research has since moved to a focused successor:
-
-> **[minshuku](https://github.com/jeeminhan/minshuku)** — the current iteration. A text-based Japanese conversation practice system focused on **scene generation, rule-based evaluation, and a two-layer testing pipeline for LLM quality regressions.** Smaller surface area, deeper investigation of the scene-runs / SRS / evaluator loop. Where `open-language` answers "what does a remembering tutor look like as a product?", `minshuku` answers "how do you keep an LLM-graded learning loop honest?"
-
-This repo remains the reference implementation of the broader product. Architectural decisions made here (SRS schema, error-pattern tracking, learner state model) carry forward into minshuku.
-
----
-
-## What it does
-
-- **Persistent vocab tracking** — every word you look up (e.g. 柿 / persimmon) is remembered, scheduled with SRS, and resurfaced when due.
-- **Error grouping by root cause** — repeated mistakes (は vs が, transitive/intransitive pairs) are grouped, not logged as 50 separate events.
-- **Interest-based personalization** — the tutor uses topics you care about to keep practice grounded.
-- **Spaced-repetition quizzes** — backed by per-item SRS state in Supabase.
-- **Bilingual EN ↔ JA practice** — across both the dashboard and the CLI.
-
----
-
-## How it works
+The fastest way to get this running is with [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Once it's running, paste this:
 
 ```
-1. You talk to the tutor    →  Next.js dashboard or Python CLI
-2. The tutor logs the turn  →  Supabase: turns, vocabulary, error_patterns
-3. The analyzer extracts    →  vocab introduced, mistakes made, topics raised
-4. SRS schedules review     →  vocab_srs / grammar_srs intervals
-5. Next session loads state →  learner cache surfaces what's due + what you care about
-6. Sessions feed back in    →  every interaction enriches the learner profile
+Hi Claude.
+Clone https://github.com/jeeminhan/open-language.git into my current directory.
+Then read AGENTS.md and CLAUDE.md. I want to run open-language locally.
+Help me set up everything — a Supabase project with the migrations run in order,
+my .env.local with the Supabase + LLM keys, and the Next.js dashboard on localhost.
+Walk me through it.
 ```
 
-The point: a session is not isolated. Each one builds on the persistent learner record, which is the whole product thesis.
+That's it. It'll clone the repo, read the docs, and walk you through the whole thing. Then keep talking to it — build features, fix bugs, whatever.
 
----
+## Manual setup
 
-## Stack
-
-- **Next.js (App Router)** — dashboard at `src/app/`
-- **Python** — CLI tutor at `cli/` (voice-capable)
-- **Supabase** — Postgres + auth + RLS for learner state
-- **OpenAI-compatible LLM** — works with OpenAI, Together, OpenRouter, local Ollama, etc.
-- **pytest** — two-layer test suite (see Testing)
-
----
-
-## Data model
-
-Persistent learner state lives in Supabase. Migrations are in `supabase-*.sql` at the repo root.
-
-### Curriculum (shared content)
-
-| Table | Purpose |
-|---|---|
-| `vocab_items` | JLPT-tagged vocabulary catalog |
-| `grammar_items` | Grammar pattern catalog |
-| `kanji_items` | Kanji catalog |
-| `frequency_ranks` | Word frequency for prioritization |
-| `example_sentences` | Source sentences per item |
-
-### Learner state (per user)
-
-| Table | Purpose |
-|---|---|
-| `learners` | Profile, level, target language |
-| `sessions` | One row per tutoring session, with summary |
-| `turns` | Every utterance in a session |
-| `vocabulary` | Words introduced to this learner |
-| `learner_known_vocab` / `learner_known_grammar` | What this learner has demonstrated |
-| `error_patterns` | Recurring mistakes, grouped by root cause |
-| `avoidance_patterns` | Things the learner consistently dodges |
-| `learner_interests` | Topics surfaced from conversation |
-| `topic_cache` | Reusable topic context |
-| `expressions` / `phrasing_suggestions` | Suggested phrasings the learner has seen |
-
-### SRS
-
-| Table | Purpose |
-|---|---|
-| `vocab_srs` | Per-learner-per-vocab interval, ease, next review |
-| `grammar_srs` | Same, for grammar patterns |
-
-The SRS layer is what makes the tutor "remember" — without it, every session starts from zero.
-
----
-
-## Layout
-
-```
-src/
-  app/             Next.js routes — dashboard, call UI, onboarding, auth
-  lib/
-    tutor.ts            Main tutor pipeline
-    agendaRouter.ts     Decides what to surface this session
-    learnerCache.ts     Loads + caches per-learner state
-    sessionLogger.ts    Persists turns / sessions to Supabase
-    scenes/             Scene-style practice modules
-    curriculum/         Curriculum loaders
-    prompts/            System prompts (shared with CLI)
-    gemini-live.ts      Voice/live integration
-    rateLimit.ts, promptSafety.ts, bodyLimit.ts
-
-cli/                CLI tutor (Python)
-  main.py             Entry point
-  tutor.py            Conversational loop
-  analyzer.py         Extracts vocab, errors, topics from turns
-  database.py         Local SQLite + Supabase sync
-  voice/              Voice-mode runtime
-  tests/              See Testing
-
-data/
-  raw/, processed/, generated/   Curriculum sources & derived assets
-
-scripts/
-  curriculum/          Curriculum import + enrichment
-
-supabase-*.sql       Database migrations (run in order)
-```
-
----
-
-## Testing
-
-The tutor's job is to produce good language output. Most of what determines "good" is downstream of an LLM call, so the test suite is split into two layers with very different speed/cost profiles.
-
-### The problem
-
-- **Code regressions** — the analyzer stops extracting vocab, the SRS interval math drifts, a Supabase write silently fails. Cheap to catch with unit tests.
-- **Quality regressions** — a prompt change makes the tutor over-correct, refuse to translate, or hallucinate vocab the learner never said. No unit test sees these.
-
-So we run two layers and don't pretend one replaces the other.
-
-### Layer 1 — Unit tests (fast, free)
-
-Mock the LLM. Verify prompt wiring, response parsing, and the deterministic plumbing around it.
-
-```bash
-cd cli
-.venv/bin/pytest
-```
-
-Covers prompt wiring (`tests/unit/test_prompt_wiring.py`) and the analyzer/database glue. This layer gates iteration speed — if it's slow or flaky, prompt work grinds to a halt.
-
-### Layer 2 — Eval suite (slow, calls real LLM)
-
-Runs a fixed set of scenarios in `cli/tests/evals/scenarios.yaml` against the real model and asserts output shape, language, and analysis structure. Each scenario writes a JSON artifact to `cli/tests/evals/runs/<timestamp>/<scenario>.json` so prompt iterations can be diffed.
-
-```bash
-cd cli
-.venv/bin/pytest -m eval
-```
-
-Assertion types currently supported:
-
-| Type | Checks |
-|---|---|
-| `response_contains_any` | response text contains at least one listed string |
-| `response_language` | response contains characters from the given script (e.g. `hiragana_or_katakana`, `hangul`) |
-| `analysis_has_key` | analysis JSON is present and contains the given key |
-| `analysis_errors_nonempty` | `analysis.errors` is a non-empty list |
-
-The eval suite is the regression net for *quality*. When a prompt change improves one scenario and quietly breaks another, this is the layer that catches it.
-
-### Iterating on prompts
-
-1. Run the eval once and inspect `cli/tests/evals/runs/<latest>/`.
-2. Edit `prompts/system.txt` (root — shared with the dashboard).
-3. Re-run. Diff old vs new run directories:
-   ```bash
-   diff -r cli/tests/evals/runs/<old-ts> cli/tests/evals/runs/<new-ts>
-   ```
-4. Add scenarios to `scenarios.yaml` as you discover regressions in the wild.
-
-### Why both layers
-
-| Question | Answered by |
-|---|---|
-| Did I break the code? | Layer 1 (`pytest`) |
-| Did I break tutor quality? | Layer 2 (`pytest -m eval`) |
-| Is my prompt change actually better? | Diff Layer 2 run artifacts |
-
-Layer 1 is the gate. Layer 2 is the radar. The successor project (`minshuku`) extends this philosophy further — adding a 0–100 LLM-judged scoring layer, finding attribution to upstream causes (template / generator / LLM), multi-session trend tracking, and a variance-check workflow that separates real signal from LLM-grader noise.
-
----
-
-## Hosted vs self-hosted
-
-This repo is the full app — Python CLI + Next.js dashboard. You can run everything locally with your own API keys (see Setup).
-
-A hosted version is at [open-language-nine.vercel.app](https://open-language-nine.vercel.app) for anyone who'd rather skip setup. Same code, managed infra. Pricing TBD.
-
----
-
-## Setup
-
-Self-hosting needs three things: the Next.js dashboard, the Python CLI, and a Supabase project.
+Prefer to do it yourself? Here's the deal. You need three things: the Next.js dashboard, a Supabase project, and (optionally) the Python CLI.
 
 ### 1. Clone and install
 
@@ -225,11 +45,11 @@ cd open-language
 npm install
 ```
 
-### 2. Supabase
+### 2. Set up Supabase
 
-Create a free project at [supabase.com](https://supabase.com), then grab your **Project URL**, **anon key**, and **service role key** from Project Settings → API.
+Create a free project at [supabase.com](https://supabase.com). Grab your **Project URL**, **anon key**, and **service role key** from Project Settings → API.
 
-Run the migrations in order:
+Then run the migrations **in this order** (they're append-only, so order matters):
 
 ```text
 supabase-migration.sql
@@ -245,7 +65,7 @@ supabase-rate-limits.sql
 supabase-alongside.sql
 ```
 
-### 3. Environment variables
+### 3. Add your keys
 
 Create `.env.local` in the repo root:
 
@@ -255,7 +75,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# LLM (OpenAI-compatible)
+# LLM (OpenAI-compatible — OpenAI, Together, OpenRouter, local Ollama, etc.)
 LLM_API_KEY=sk-...
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_MODEL=gpt-4o-mini
@@ -268,15 +88,17 @@ GOOGLE_SEARCH_CX=
 ADMIN_USER_IDS=
 ```
 
-### 4. Run the dashboard
+### 4. Run it
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000) and start talking.
 
-### 5. Python CLI (optional)
+### 5. The Python CLI (optional)
+
+There's also a terminal tutor — same brain, voice-capable.
 
 ```bash
 cd cli
@@ -286,13 +108,112 @@ pip install -r requirements.txt
 python main.py
 ```
 
-The CLI reads the same `LLM_*` variables from `.env.local`. See `cli/` for voice mode, push-to-talk, and other options.
+It reads the same `LLM_*` keys from `.env.local`. See `cli/` for voice mode, push-to-talk, and the rest.
 
----
+## How it works
 
-## Conventions
+Nothing magic — the trick is that a session is never isolated. Each one builds on a persistent record of *you*.
 
-- **Migrations are append-only.** Don't rewrite a past `supabase-*.sql`; add a new one.
-- **Prompts are shared** between dashboard and CLI via `prompts/system.txt`. The eval suite covers both surfaces because of this.
-- **Learner state is the product.** Code that touches learner tables (`vocabulary`, `error_patterns`, `*_srs`) gets unit + eval coverage.
-- **For the next iteration of the testing/eval architecture, see [minshuku](https://github.com/jeeminhan/minshuku).**
+```
+1. You talk to the tutor    →  web dashboard or Python CLI
+2. It logs the turn         →  Supabase: turns, vocabulary, error_patterns
+3. The analyzer extracts    →  new vocab, mistakes made, topics raised
+4. SRS schedules review     →  vocab_srs / grammar_srs intervals
+5. Next session loads you   →  surfaces what's due + what you actually care about
+6. Repeat                   →  every conversation makes the next one smarter
+```
+
+That feedback loop is the whole product thesis. A few things fall out of it:
+
+- **It remembers vocab.** Every word you look up (柿 / persimmon) is saved, scheduled with spaced repetition, and brought back when it's due.
+- **It groups mistakes by root cause.** Keep mixing up は vs が? That's *one* tracked pattern, not 50 scattered log lines.
+- **It talks about stuff you like.** Topics you raise get reused so practice doesn't feel like homework.
+- **It quizzes you** on the words you're about to forget.
+
+## Under the hood
+
+**Stack:** Next.js (App Router) dashboard, a Python CLI, Supabase (Postgres + auth + RLS) for state, an OpenAI-compatible LLM, and pytest for a two-layer test suite.
+
+The persistent learner state is the part that matters. Roughly:
+
+| Group | Tables | What it holds |
+|---|---|---|
+| **You** | `learners`, `sessions`, `turns` | profile, every session, every utterance |
+| **What you know** | `vocabulary`, `learner_known_vocab`, `learner_known_grammar` | words/patterns you've actually demonstrated |
+| **What trips you up** | `error_patterns`, `avoidance_patterns` | recurring mistakes, things you dodge |
+| **What you're into** | `learner_interests`, `topic_cache`, `expressions` | topics + phrasings surfaced from conversation |
+| **When to review** | `vocab_srs`, `grammar_srs` | per-item interval, ease, next-review date |
+
+The SRS layer is what makes it *remember* instead of starting from zero every time. (There's also a shared curriculum catalog — `vocab_items`, `grammar_items`, `kanji_items`, etc. — that all learners draw from.)
+
+## Project structure
+
+```
+src/
+  app/             Next.js routes — dashboard, call UI, onboarding, auth
+  lib/
+    tutor.ts            Main tutor pipeline
+    agendaRouter.ts     Decides what to surface this session
+    learnerCache.ts     Loads + caches per-learner state
+    sessionLogger.ts    Persists turns / sessions to Supabase
+    prompts/            System prompts (shared with the CLI)
+    curriculum/         Curriculum loaders
+    scenes/             Scene-style practice modules
+
+cli/               Python CLI tutor
+  main.py             Entry point
+  tutor.py            Conversational loop
+  analyzer.py         Extracts vocab, errors, topics from turns
+  database.py         Local SQLite + Supabase sync
+  voice/              Voice-mode runtime
+  tests/              Two-layer test suite (see below)
+
+supabase-*.sql     Database migrations (run in order)
+```
+
+## Testing — the honest version
+
+The tutor's job is to produce good language output, and most of "good" lives downstream of an LLM call. So there are two test layers that catch very different things, and one doesn't replace the other.
+
+**Layer 1 — unit tests (fast, free).** Mock the LLM, verify the plumbing: prompt wiring, response parsing, the deterministic glue. This is the gate — if it's slow or flaky, prompt work grinds to a halt.
+
+```bash
+cd cli && .venv/bin/pytest
+```
+
+**Layer 2 — evals (slow, calls the real model).** Runs fixed scenarios from `cli/tests/evals/scenarios.yaml` against the actual LLM and checks the output shape, language, and analysis. Each run drops a JSON artifact under `cli/tests/evals/runs/<timestamp>/` so you can diff prompt changes.
+
+```bash
+cd cli && .venv/bin/pytest -m eval
+```
+
+Quick gut-check on which catches what:
+
+| Question | Answered by |
+|---|---|
+| Did I break the code? | Layer 1 (`pytest`) |
+| Did I break tutor *quality*? | Layer 2 (`pytest -m eval`) |
+| Is my prompt change actually better? | Diff the Layer 2 run artifacts |
+
+Layer 1 is the gate. Layer 2 is the radar.
+
+## A note on what's next
+
+This repo is the original full-stack app — the answer to *"what does a tutor with a memory look like as a product?"*
+
+The active research has since moved to a focused successor:
+
+> **[minshuku](https://github.com/jeeminhan/minshuku)** — a leaner, text-based Japanese practice system that goes deeper on the part I care most about: keeping an LLM-graded learning loop honest. Scene generation, rule-based evaluation, a 0–100 LLM-judged scoring layer, failure attribution (template vs. generator vs. model), and a variance-check workflow that separates real signal from grader noise.
+
+open-language stays the reference implementation — the SRS schema, error-pattern tracking, and learner-state model here all carry forward into minshuku.
+
+## Contributing
+
+PRs welcome. If you're on Claude Code, it already knows the codebase — point it at `AGENTS.md` / `CLAUDE.md` and tell it what you want to build.
+
+A couple of house rules:
+- **Migrations are append-only.** Don't rewrite an old `supabase-*.sql` — add a new one.
+- **Prompts are shared** between the dashboard and CLI via `prompts/system.txt`, which is why the eval suite covers both.
+- **Learner state is the product.** Anything touching `vocabulary`, `error_patterns`, or `*_srs` should get unit + eval coverage.
+
+MIT licensed. Build something cool with it.

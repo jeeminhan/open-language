@@ -1,45 +1,53 @@
 import Link from "next/link";
 import styles from "./landing.module.css";
+import PhoneChatDemo from "@/components/landing/PhoneChatDemo";
 
 export default function LandingPage() {
   return (
     <div className={styles.landing}>
       {/* ─── Hero ─── */}
       <div className={styles.hero}>
-        <div className={styles.heroBadge}>
-          <span className={styles.badgeGreen}>●</span> A language tutor with a
-          memory
+        <div className={styles.heroGrid}>
+          <div className={styles.heroCopy}>
+            <div className={styles.heroBadge}>
+              <span className={styles.badgeGreen}>●</span> A language tutor with
+              a memory
+            </div>
+            <h1 className={styles.heroTitle}>
+              open<span className={styles.accent}>-</span>language
+            </h1>
+            <p className={styles.subtitle}>
+              Every word you ask about, every mistake you keep making, every
+              topic you love &mdash; it remembers. ChatGPT doesn&apos;t.
+            </p>
+            <div className={styles.ctaRow}>
+              <Link href="/home" className={styles.ctaPrimary}>
+                Start your first session
+                <Arrow />
+              </Link>
+              <Link href="/login" className={styles.ctaSecondary}>
+                Sign in with Google
+              </Link>
+              <a
+                href="https://github.com/jeeminhan/open-language"
+                target="_blank"
+                rel="noreferrer"
+                className={styles.ctaSecondary}
+              >
+                GitHub ↗
+              </a>
+            </div>
+            <p className={styles.heroNote}>No sign-in for your first session.</p>
+          </div>
+
+          <div className={styles.heroVisual}>
+            <PhoneChatDemo />
+            <p className={styles.heroVisualCaption}>
+              A real session &mdash; watch it save the word, catch the mistake,
+              and bring both back two days later.
+            </p>
+          </div>
         </div>
-        <h1 className={styles.heroTitle}>
-          open<span className={styles.accent}>-</span>language
-        </h1>
-        <p className={styles.subtitle}>
-          Every word you ask about, every mistake you keep making, every topic
-          you love &mdash; it remembers. ChatGPT doesn&apos;t.
-        </p>
-        <div className={styles.ctaRow}>
-          <Link href="/demo" className={styles.ctaPrimary}>
-            Watch the 60-second demo
-            <Arrow />
-          </Link>
-          <Link href="/login" className={styles.ctaSecondary}>
-            Sign in with Google
-          </Link>
-          <Link href="/home" className={styles.ctaSecondary}>
-            Try without signing in
-          </Link>
-          <a
-            href="https://github.com/jeeminhan/open-language"
-            target="_blank"
-            rel="noreferrer"
-            className={styles.ctaSecondary}
-          >
-            GitHub ↗
-          </a>
-        </div>
-        <p className={styles.heroNote}>
-          No sign-in for your first session.
-        </p>
       </div>
 
       {/* ─── ChatGPT comparison ─── */}
@@ -194,15 +202,12 @@ export default function LandingPage() {
             start.
           </p>
           <div className={styles.ctaRow}>
-            <Link href="/demo" className={styles.ctaPrimary}>
-              Watch the 60-second demo
+            <Link href="/home" className={styles.ctaPrimary}>
+              Start your first session
               <Arrow />
             </Link>
             <Link href="/login" className={styles.ctaSecondary}>
               Sign in with Google
-            </Link>
-            <Link href="/home" className={styles.ctaSecondary}>
-              Try without signing in
             </Link>
           </div>
         </div>

@@ -15,6 +15,59 @@
   position: relative;
 }
 
+.heroGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3rem;
+  align-items: center;
+  width: 100%;
+  max-width: 1080px;
+  position: relative;
+  z-index: 2;
+}
+
+.heroCopy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.heroVisual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
+}
+
+.heroVisualCaption {
+  max-width: 340px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+@media (min-width: 920px) {
+  .heroGrid {
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 4rem;
+  }
+
+  .heroCopy {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .heroCopy .heroTitle {
+    font-size: clamp(3rem, 1rem + 4.5vw, 4.75rem);
+  }
+
+  .heroCopy .subtitle {
+    margin-left: 0;
+    margin-right: 0;
+    margin-bottom: 2.25rem;
+  }
+}
+
 .hero::after {
   content: "";
   position: absolute;
